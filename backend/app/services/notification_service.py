@@ -158,9 +158,31 @@ def _query(db: Session, user: User, source: str = "", status: str = "",
     return items
 
 
+def _group(item: dict) -> str:
+    """把两类源表的不同 alert_type 归并为提醒中心的分组。"""
+    alert_type = item.get("alert_type", "")
+    payload = item.get("payload") or {}
+    if alert_type == "budget_100":
+        return "budget_over"
+    if alert_type == "budget_80":
+        return "budget_near"
+    if alert_type == "budget":
+        return "budget_over" if payload.get("budget_status") == "over100" else "budget_near"
+    if alert_type == "subscription":
+        return "subscription"
+    if alert_type == "goal":
+        return "goal"
+    if alert_type == "planned_purchase":
+        return "purchase"
+    return "other"
+
+
 def list_notifications(db: Session, user: User, status: str = "",
-                       source: str = "", limit: int = 50) -> list[dict]:
+                       source: str = "", limit: int = 50,
+                       group: str = "") -> list[dict]:
     items = _query(db, user, source, status, limit)
+    if group:
+        items = [item for item in items if _group(item) == group]
     if source:
         items.sort(key=lambda x: x["created_at"], reverse=True)
         return items[:max(1, min(limit, 100))]

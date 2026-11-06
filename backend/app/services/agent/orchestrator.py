@@ -70,6 +70,8 @@ async def run_agent(db: Session, user: User, message: str, mode: str = "auto",
             _run_asset(db, user, safe_message, run, start)
         elif intent == "simulate":
             _run_simulate(db, user, safe_message, run, start)
+        elif intent == "health":
+            _run_health(db, user, safe_message, run, start)
         else:
             _run_query(db, user, safe_message, run, start)
     except policy.PolicyError as exc:
@@ -111,6 +113,9 @@ def _detect_intent(message: str, mode: str) -> str:
             r"\d+(?:\.\d+)?\s*(元|块|万|千)|[零一二两三四五六七八九十百千万]+\s*(元|块|万|千)",
             text):
         return "bill"
+    # 消费健康诊断：只读报告，不进入记账/资产查询
+    if any(k in text for k in ("健康诊断", "消费健康", "健康分", "健康报告", "诊断一下消费")):
+        return "health"
     # 资产/负债查询：排除“预算余额”等预算问题
     if "预算" not in text and any(k in text for k in (
             "资产", "净资产", "负债", "欠款", "信用卡", "房贷", "车贷", "房产",
@@ -798,6 +803,41 @@ def _run_simulate(db: Session, user: User, message: str, run: AgentRun,
             "source": "decision_simulator+bills+budgets+goals+assets",
             "intent": "simulate", "as_of": result["as_of"],
             "cards": [{"type": "simulation", "data": result}],
+        },
+        latency_ms=_elapsed(start))
+
+
+def _run_health(db: Session, user: User, message: str, run: AgentRun,
+                start: float) -> None:
+    """消费健康诊断：复用 health_service 的确定性报告，模型不参与打分。"""
+    trace.set_plan(db, run, [
+        "读取账单、预算、目标与订阅", "计算五项健康指标",
+        "生成覆盖率与改善建议",
+    ])
+    report = health_service.build_report(db, user)
+    card_data = {
+        "month": report.get("month"),
+        "overall_score": report.get("overall_score"),
+        "overall_level": report.get("overall_level"),
+        "coverage": report.get("coverage"),
+        "summary": report.get("summary"),
+        "indicators": report.get("indicators", [])[:6],
+        "recommendations": report.get("recommendations", [])[:3],
+        "as_of": report.get("generated_at") or datetime.now().isoformat(timespec="seconds"),
+    }
+    trace.add_step(db, run, "tool", "get_health_report", {}, card_data)
+    answer = report.get("summary") or "消费健康报告已生成。"
+    recommendations = report.get("recommendations") or []
+    if recommendations:
+        answer += " 优先建议：" + recommendations[0].get("title", "") + "。"
+    if (report.get("coverage") or 0) < 0.5:
+        answer += " 当前指标覆盖率不足 50%，部分分数暂不计算；先补充账单、预算或目标数据。"
+    trace.finish_run(
+        db, run, "completed", answer,
+        evidence={
+            "source": "bills+budgets+goals+subscriptions+health_service",
+            "intent": "health", "as_of": card_data["as_of"],
+            "cards": [{"type": "health_report", "data": card_data}],
         },
         latency_ms=_elapsed(start))
 
@@ -2024,4 +2064,4 @@ def delete_memory(db: Session, user: User, memory_id: int) -> None:
 
 
 def tool_count() -> int:
-    return 8  # 读工具：账单/汇总/预算/订阅/目标/待办/资产总览/净资产变化
+    return 9  # 读工具：账单/汇总/预算/订阅/目标/待办/资产总览/净资产变化/健康诊断

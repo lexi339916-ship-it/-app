@@ -22,15 +22,20 @@ def summary(user: User = Depends(get_current_user), db: Session = Depends(get_db
 
 
 @router.get("", response_model=list[UnifiedNotificationOut])
-def list_notifications(status: str = "", source: str = "", limit: int = 50,
+def list_notifications(status: str = "", source: str = "", group: str = "",
+                       limit: int = 50,
                        user: User = Depends(get_current_user),
                        db: Session = Depends(get_db)):
-    """统一列表；source=budget/agent 可筛选，默认按业务键折叠重复提醒。"""
+    """统一列表；source=budget/agent、group 可按提醒分组筛选。"""
     if source and source not in ("budget", "agent"):
         raise HTTPException(400, "source 只能是 budget 或 agent")
     if status and status not in ("unread", "read", "accepted", "dismissed"):
         raise HTTPException(400, "status 参数不正确")
-    return notification_service.list_notifications(db, user, status, source, limit)
+    if group and group not in ("budget_over", "budget_near", "subscription",
+                               "goal", "purchase", "other"):
+        raise HTTPException(400, "group 参数不正确")
+    return notification_service.list_notifications(
+        db, user, status, source, limit, group)
 
 
 @router.post("/read-all", response_model=NotificationReadAllOut)

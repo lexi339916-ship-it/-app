@@ -81,6 +81,8 @@ export const apiAgentRun = (message, mode = 'auto', sessionId = null, parentRunI
 export const apiAgentRuns = (limit = 8) => http.get('/api/agent/runs', { limit })
 export const apiAgentSession = (sessionId) => http.get(`/api/agent/sessions/${sessionId}`)
 export const apiAgentSessions = (limit = 10) => http.get('/api/agent/sessions', { limit })
+export const apiDeleteAgentSession = (sessionId) =>
+  http.delete(`/api/agent/sessions/${encodeURIComponent(sessionId)}`)
 export const apiAgentRunDetail = (runId) => http.get(`/api/agent/runs/${runId}`)
 export const apiAgentApproval = (approvalId, decision, edits = {}) =>
   http.post(`/api/agent/approvals/${approvalId}`, { decision, edits })
@@ -183,6 +185,33 @@ export const apiParseReceipt = (filePath) => new Promise((resolve, reject) => {
     },
     fail() {
       const message = '网络连接失败，请检查后端服务'
+      uni.showToast({ title: message, icon: 'none' })
+      reject({ status: -1, message, body: null })
+    },
+  })
+})
+
+/** 上传录音并转写为文字（按住说话） */
+export const apiTranscribeVoice = (filePath) => new Promise((resolve, reject) => {
+  uni.uploadFile({
+    url: getBaseUrl() + '/api/voice/transcribe',
+    filePath,
+    name: 'file',
+    timeout: 60000,
+    header: store.token ? { Authorization: 'Bearer ' + store.token } : {},
+    success(res) {
+      let body = {}
+      try { body = JSON.parse(res.data) } catch (e) { body = {} }
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        resolve(body)
+      } else {
+        const message = body.message || `语音识别失败（${res.statusCode}）`
+        uni.showToast({ title: message, icon: 'none', duration: 2500 })
+        reject({ status: res.statusCode, message, body })
+      }
+    },
+    fail() {
+      const message = '语音上传失败，请检查网络或改用文字'
       uni.showToast({ title: message, icon: 'none' })
       reject({ status: -1, message, body: null })
     },

@@ -2,7 +2,7 @@
   "pages": [
     {"path": "pages/login/login", "style": {"navigationBarTitleText": "登录", "navigationStyle": "custom"}},
     {"path": "pages/register/register", "style": {"navigationBarTitleText": "注册"}},
-    {"path": "pages/agent/agent", "style": {"navigationBarTitleText": "知账 Agent"}},
+    {"path": "pages/agent/agent", "style": {"navigationBarTitleText": "知账 AI", "navigationStyle": "custom"}},
     {"path": "pages/assets/assets", "style": {"navigationBarTitleText": "个人资产", "enablePullDownRefresh": true}},
     {"path": "pages/index/index", "style": {"navigationBarTitleText": "首页", "enablePullDownRefresh": true}},
     {"path": "pages/bills/list", "style": {"navigationBarTitleText": "账单"}},
@@ -13,7 +13,7 @@
     {"path": "pages/health/report", "style": {"navigationBarTitleText": "消费健康诊断"}},
     {"path": "pages/simulator/simulator", "style": {"navigationBarTitleText": "消费决策模拟"}},
     {"path": "pages/import/import", "style": {"navigationBarTitleText": "CSV 账单导入"}},
-    {"path": "pages/notifications/notifications", "style": {"navigationBarTitleText": "消息中心"}},
+    {"path": "pages/notifications/notifications", "style": {"navigationBarTitleText": "提醒中心"}},
     {"path": "pages/goals/goals", "style": {"navigationBarTitleText": "目标与挑战"}},
     {"path": "pages/profile/profile", "style": {"navigationBarTitleText": "我的"}},
     {"path": "pages/budget/center", "style": {"navigationBarTitleText": "预算中心"}},

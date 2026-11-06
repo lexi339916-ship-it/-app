@@ -54,7 +54,8 @@ app/
 - **会话**：`agent_runs.session_id/parent_run_id/turn_index` 保存多轮；历史会话支持标题/预览、继续与软删除（`agent_session_archives`），审计轨迹不物理删除。
 - **数字口径**：金额用 Decimal；预算/目标/订阅/健康/模拟全部由 SQL/规则计算，模型只负责解析和表达。
 - **统一通知**：保留 `budget_alerts` 与 `agent_notifications` 两张源表，
-  新增 `/api/notifications/*` 聚合读模型；旧接口不变。
+  新增 `/api/notifications/*` 聚合读模型；支持 `group=budget_over/budget_near/subscription/goal/purchase/other` 分组筛选；旧接口不变。
+- **Agent 健康诊断**：`/api/agent/run` 的 `health` 意图复用 `health_service.build_report`，只读返回真实指标/覆盖率/建议，不审批、不编造。
 - **预算**：`category_budgets` 是唯一写入源；`/api/budgets` 在存在分类预算时返回只读投影。
 - **头像**：`users.avatar` 存 256×256 JPEG data URL，不保存原图。
 - **个人资产**：`asset_accounts/asset_liabilities/asset_transactions` 独立账本；支持现金/银行/微信/支付宝/储蓄、房产/车辆/理财/贵重物品；转账只写两条流水、不生成账单；账单显式关联 `account_id` 才影响余额，关联 `liability_id` 时自动增加信用卡/分期负债。

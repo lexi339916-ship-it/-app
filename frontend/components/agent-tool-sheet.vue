@@ -2,43 +2,68 @@
 import { computed, ref, watch } from 'vue'
 import {
   apiAddBill, apiAddNote, apiBillCheck, apiCategories, apiParseNote,
-  apiParseReceipt, apiSummary,
 } from '../api/index.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   initialReceipt: { type: Array, default: () => [] },
+  focus: { type: String, default: '' }, // receipt 时直接展示截图草稿
 })
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'action'])
 
-const tab = ref('receipt')
+const panel = ref('')
 const categories = ref([])
 const receiptDrafts = ref([])
 const noteText = ref('')
 const noteDrafts = ref([])
-const summaryText = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const error = ref(null)
 
 const categoryNames = computed(() => categories.value.map(c => c.name))
-const TOOLS = [
-  { key: 'receipt', label: '截图记账', desc: '支付截图 / 小票', icon: '/static/icons/act_camera.png', bg: '#EEF1FF', panel: true },
-  { key: 'note', label: '任务提取', desc: '一句话拆任务', icon: '/static/icons/act_note.png', bg: '#FFF6E7', panel: true },
-  { key: 'summary', label: '消费总结', desc: '本月消费总结', icon: '/static/icons/act_sparkle.png', bg: '#F4F0FF', panel: true },
-  { key: 'health', label: '消费健康诊断', desc: '五项健康指标', icon: '/static/icons/act_chart.png', bg: '#E9F8F2', route: '/pages/health/report' },
-  { key: 'simulator', label: '消费决策模拟', desc: '买之前先算一算', icon: '/static/icons/act_target.png', bg: '#FFF7E9', route: '/pages/simulator/simulator' },
-  { key: 'csv', label: 'CSV 账单导入', desc: '微信/支付宝/通用', icon: '/static/icons/act_note.png', bg: '#E9F8F2', route: '/pages/import/import' },
-  { key: 'budget', label: '预算中心', desc: '分类预算 / AI 方案', icon: '/static/icons/act_wallet.png', bg: '#FFEFF2', route: '/pages/budget/center' },
-  { key: 'subscriptions', label: '订阅管理', desc: '涨价 / 低频体检', icon: '/static/icons/act_wallet.png', bg: '#F6F4FB', route: '/pages/subscriptions/list' },
-  { key: 'goals', label: '储蓄目标', desc: '目标 / 挑战 / 进度', icon: '/static/icons/act_target.png', bg: '#FFEDEE', route: '/pages/goals/goals' },
+
+const GROUPS = [
+  {
+    key: 'analysis',
+    title: '智能分析',
+    desc: '基于真实账单与资产数据',
+    tools: [
+      { key: 'summary', label: '消费总结', desc: '本月收支与主要支出', icon: '📊', bg: '#EFF1FF' },
+      { key: 'health', label: '消费健康诊断', desc: '预算、目标、订阅、结构', icon: '🩺', bg: '#E9F8F2' },
+      { key: 'simulator', label: '消费决策模拟', desc: '买之前先测算影响', icon: '🧮', bg: '#FFF6E7' },
+      { key: 'note', label: '任务提取', desc: '一句话拆成待办', icon: '🗒️', bg: '#F4F0FF' },
+    ],
+  },
+  {
+    key: 'manage',
+    title: '账单与管理',
+    desc: '记账、导入与现有管理页',
+    tools: [
+      { key: 'receipt', label: '截图记账', desc: '支付截图 / 小票', icon: '📷', bg: '#EEF1FF' },
+      { key: 'csv', label: 'CSV 导入', desc: '微信 / 支付宝 / 通用', icon: '📥', bg: '#E9F8F2' },
+      { key: 'budget', label: '预算管理', desc: '分类预算与调度', icon: '💰', bg: '#FFEFF2' },
+      { key: 'subscriptions', label: '订阅管理', desc: '涨价 / 低频体检', icon: '🔁', bg: '#F6F4FB' },
+      { key: 'goals', label: '储蓄目标', desc: '目标 / 挑战 / 进度', icon: '🎯', bg: '#FFEDEE' },
+    ],
+  },
 ]
-const currentTool = computed(() => TOOLS.find(t => t.key === tab.value) || TOOLS[0])
+
+const ACTIONS = {
+  summary: { type: 'chat', prompt: '本月收支怎么样？主要支出有哪些？' },
+  health: { type: 'chat', prompt: '帮我做一次消费健康诊断' },
+  simulator: { type: 'navigate', url: '/pages/simulator/simulator' },
+  note: { type: 'panel', panel: 'note' },
+  receipt: { type: 'pick-image' },
+  csv: { type: 'navigate', url: '/pages/import/import?pick=1' },
+  budget: { type: 'navigate', url: '/pages/budget/center' },
+  subscriptions: { type: 'navigate', url: '/pages/subscriptions/list' },
+  goals: { type: 'navigate', url: '/pages/goals/goals' },
+}
 
 async function loadCategories() {
   if (categories.value.length) return
   try {
-    const res = await apiCategories('expense')
+    const res = await apiCategories()
     categories.value = res.items || []
   } catch (e) { /* 分类失败不阻塞 */ }
 }
@@ -52,61 +77,48 @@ function setCategory(draft, e) {
   draft.category = categoryNames.value[Number(e.detail.value)] || draft.category
 }
 
-function useInitialReceipt() {
-  if (props.initialReceipt && props.initialReceipt.length) {
-    tab.value = 'receipt'
-    receiptDrafts.value = props.initialReceipt.map((d, i) => ({
-      ...d,
-      key: `init-${i}`,
-      bill_date: d.bill_date || new Date().toISOString().slice(0, 10),
-      remark: d.remark || d.merchant || '',
-    }))
+function fillReceipt(list) {
+  receiptDrafts.value = (list || []).map((d, i) => ({
+    ...d,
+    key: `${Date.now()}-${i}`,
+    bill_date: d.bill_date || new Date().toISOString().slice(0, 10),
+    remark: d.remark || d.merchant || '',
+  }))
+}
+
+function initPanel() {
+  if (props.focus === 'receipt' || props.initialReceipt.length) {
+    panel.value = 'receipt'
+    fillReceipt(props.initialReceipt)
+  } else {
+    panel.value = ''
   }
+  error.value = null
 }
 
 watch(() => props.visible, (v) => {
   if (v) {
     loadCategories()
-    useInitialReceipt()
+    initPanel()
   }
-})
+}, { immediate: true })
 watch(() => props.initialReceipt, () => {
-  if (props.visible) useInitialReceipt()
+  if (props.visible) {
+    panel.value = 'receipt'
+    fillReceipt(props.initialReceipt)
+  }
 })
 
-function chooseReceipt() {
-  if (!uni.chooseImage) {
-    uni.showToast({ title: '当前环境不支持选图，请用文字记账', icon: 'none' })
+function handleTool(tool) {
+  const action = ACTIONS[tool.key]
+  if (!action) return
+  if (action.type === 'panel') {
+    panel.value = action.panel
+    error.value = null
+    if (action.panel === 'note') loadCategories()
     return
   }
-  uni.chooseImage({
-    count: 1,
-    sizeType: ['compressed'],
-    sourceType: ['album', 'camera'],
-    success: async (res) => {
-      const path = res.tempFilePaths && res.tempFilePaths[0]
-      if (!path) return
-      loading.value = true
-      error.value = null
-      try {
-        const data = await apiParseReceipt(path)
-        if (!data.found || !data.drafts || !data.drafts.length) {
-          uni.showToast({ title: data.notice || '未识别到支付信息', icon: 'none' })
-          return
-        }
-        receiptDrafts.value = data.drafts.map((d, i) => ({
-          ...d,
-          key: `${Date.now()}-${i}`,
-          bill_date: d.bill_date || new Date().toISOString().slice(0, 10),
-          remark: d.remark || d.merchant || '',
-        }))
-      } catch (e) {
-        error.value = e
-      } finally {
-        loading.value = false
-      }
-    },
-  })
+  emit('action', action)
 }
 
 async function saveReceipt(draft) {
@@ -178,64 +190,48 @@ async function saveNote(draft) {
   }
 }
 
-async function loadSummary() {
-  loading.value = true
-  error.value = null
-  try {
-    const data = await apiSummary('month')
-    summaryText.value = data.summary || '本月还没有足够的数据。'
-  } catch (e) {
-    error.value = e
-  } finally {
-    loading.value = false
-  }
-}
-
 function close() { emit('close') }
-
-function handleTool(tool) {
-  if (tool.panel) {
-    tab.value = tool.key
-    error.value = null
-    return
-  }
-  close()
-  if (tool.route) uni.navigateTo({ url: tool.route })
-}
+function back() { panel.value = ''; error.value = null }
 </script>
 
 <template>
   <view v-if="visible" class="mask" @click.self="close">
     <view class="sheet">
       <view class="sheet-head">
-        <text class="sheet-title">Agent 工具</text>
+        <view class="sheet-title-row">
+          <text v-if="panel" class="back-btn" @click="back">‹</text>
+          <view>
+            <text class="sheet-title">{{ panel === 'receipt' ? '截图记账' : (panel === 'note' ? '任务提取' : 'Agent 工具') }}</text>
+            <text class="sheet-sub">{{ panel === 'receipt' ? '识别结果确认后才写入账单' : (panel === 'note' ? '一句话拆成可执行待办' : '选择工具，直接进入对应操作') }}</text>
+          </view>
+        </view>
         <text class="sheet-close" @click="close">×</text>
       </view>
-      <view class="tool-grid">
-        <view class="tool-card" v-for="tool in TOOLS" :key="tool.key"
-          :class="{ active: tool.panel && tab === tool.key }" @click="handleTool(tool)">
-          <view class="tool-icon" :style="{ background: tool.bg }">
-            <image class="tool-img" :src="tool.icon" mode="widthFix" />
+
+      <view v-if="error" class="error-box">{{ error.message || '操作失败，请重试' }}</view>
+
+      <!-- 工具菜单 -->
+      <view v-if="!panel" class="tool-body">
+        <view class="tool-group" v-for="group in GROUPS" :key="group.key">
+          <view class="group-head">
+            <text class="group-title">{{ group.title }}</text>
+            <text class="group-desc">{{ group.desc }}</text>
           </view>
-          <view class="tool-body">
-            <text class="tool-name">{{ tool.label }}</text>
-            <text class="tool-desc">{{ tool.desc }}</text>
+          <view class="tool-list">
+            <view class="tool-row" v-for="tool in group.tools" :key="tool.key" @click="handleTool(tool)">
+              <view class="tool-icon" :style="{ background: tool.bg }">{{ tool.icon }}</view>
+              <view class="tool-main">
+                <text class="tool-name">{{ tool.label }}</text>
+                <text class="tool-desc">{{ tool.desc }}</text>
+              </view>
+              <text class="tool-arrow">›</text>
+            </view>
           </view>
         </view>
       </view>
 
-      <text class="panel-title">当前：{{ currentTool.label }}</text>
-
-      <view v-if="error" class="error-box">
-        <text>{{ error.message || '操作失败，请重试' }}</text>
-      </view>
-
-      <!-- 截图记账 -->
-      <view v-if="tab === 'receipt'">
-        <button class="btn primary" :class="{ 'btn-off': loading }" :disabled="loading" @click="chooseReceipt">
-          {{ loading ? '识别中…' : '选择支付截图 / 小票' }}
-        </button>
-        <text class="hint">识别后核对金额和分类，确认才会写入账单。</text>
+      <!-- 截图草稿 -->
+      <view v-if="panel === 'receipt'" class="panel-body">
         <view v-if="receiptDrafts.length" class="draft-list">
           <view class="draft" v-for="d in receiptDrafts" :key="d.key">
             <view class="draft-line">
@@ -266,12 +262,13 @@ function handleTool(tool) {
         </view>
         <view v-else class="empty-box">
           <text>还没有截图草稿</text>
-          <text class="hint">支持支付截图、小票；识别失败时请改用文字记账。</text>
+          <text class="hint">识别失败时请改用文字记账。</text>
         </view>
+        <button class="btn ghost reselect" @click="emit('action', { type: 'pick-image' })">重新选择截图</button>
       </view>
 
-      <!-- 任务提取 -->
-      <view v-if="tab === 'note'">
+      <!-- 任务草稿 -->
+      <view v-if="panel === 'note'" class="panel-body">
         <textarea class="note-input" v-model="noteText" auto-height maxlength="500"
           placeholder="例如：明天下午三点交报告，晚上买牛奶" />
         <button class="btn primary" :class="{ 'btn-off': loading }" :disabled="loading" @click="parseNote">
@@ -288,19 +285,10 @@ function handleTool(tool) {
             </view>
           </view>
         </view>
-      </view>
-
-      <!-- 消费总结 -->
-      <view v-if="tab === 'summary'">
-        <button class="btn primary" :class="{ 'btn-off': loading }" :disabled="loading" @click="loadSummary">
-          {{ loading ? '生成中…' : '生成本月消费总结' }}
-        </button>
-        <text v-if="summaryText" class="summary-text">{{ summaryText }}</text>
         <view v-else class="empty-box">
-          <text>用真实账单生成一段可读的消费总结</text>
+          <text>输入一段话，Agent 会拆成任务草稿。</text>
         </view>
       </view>
-
     </view>
   </view>
 </template>
@@ -308,57 +296,60 @@ function handleTool(tool) {
 <style scoped>
 .mask { position: fixed; inset: 0; background: rgba(35, 34, 58, .45);
   z-index: 999; display: flex; align-items: flex-end; }
-.sheet { width: 100%; max-height: 82vh; overflow-y: auto; background: #FFFDF8;
-  border-radius: 32rpx 32rpx 0 0; padding: 28rpx 28rpx 40rpx; box-sizing: border-box; }
-.sheet-head { display: flex; align-items: center; justify-content: space-between; }
-.sheet-title { font-size: 32rpx; font-weight: 800; color: #3A3F58; }
-.sheet-close { font-size: 40rpx; color: #A6AAC2; padding: 0 8rpx; }
-.tool-grid { display: flex; flex-wrap: wrap; gap: 14rpx; margin: 20rpx 0 12rpx; }
-.tool-card { width: calc(50% - 7rpx); display: flex; align-items: center; gap: 12rpx;
-  background: #FAF9FF; border: 1rpx solid #E9E6F4; border-radius: 18rpx; padding: 14rpx;
-  box-sizing: border-box; }
-.tool-card.active { border-color: #8B7FE8; background: #F4F0FF; }
-.tool-icon { width: 54rpx; height: 54rpx; border-radius: 16rpx; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; }
-.tool-img { width: 38rpx; height: 38rpx; }
-.tool-body { flex: 1; min-width: 0; }
-.tool-name { display: block; font-size: 22rpx; font-weight: 700; color: #3A3F58;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tool-desc { display: block; font-size: 18rpx; color: #A6AAC2; margin-top: 4rpx;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.panel-title { display: block; font-size: 22rpx; color: #6C7BF5; font-weight: 700;
-  margin: 8rpx 0 12rpx; }
-.btn { margin: 0; height: 78rpx; line-height: 78rpx; border-radius: 20rpx;
-  font-size: 27rpx; font-weight: 700; }
-.btn.primary { color: #FFF; background: linear-gradient(135deg, #7C8BFF, #A78BFA); }
-.btn.small { height: 62rpx; line-height: 62rpx; font-size: 23rpx; padding: 0 22rpx; }
+.sheet { width: 100%; max-height: 80vh; background: #FFFDF8; border-radius: 32rpx 32rpx 0 0;
+  padding: 24rpx 28rpx 32rpx; box-sizing: border-box; display: flex; flex-direction: column; }
+.sheet-head { display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12rpx; flex-shrink: 0; }
+.sheet-title-row { display: flex; align-items: flex-start; gap: 8rpx; min-width: 0; }
+.back-btn { font-size: 42rpx; color: #6C7BF5; line-height: 1; padding: 0 6rpx 0 0; }
+.sheet-title { display: block; font-size: 31rpx; font-weight: 800; color: #3A3F58; }
+.sheet-sub { display: block; font-size: 20rpx; color: #A6AAC2; margin-top: 4rpx; }
+.sheet-close { font-size: 40rpx; color: #A6AAC2; padding: 0 6rpx; line-height: 1; }
+.tool-body { flex: 1; min-height: 0; overflow-y: auto; margin-top: 14rpx; }
+.tool-group { margin-top: 8rpx; }
+.group-head { display: flex; align-items: baseline; gap: 10rpx; padding: 8rpx 4rpx; }
+.group-title { font-size: 23rpx; font-weight: 800; color: #5A54B8; }
+.group-desc { font-size: 18rpx; color: #B0B4C8; }
+.tool-list { background: #FAF9FF; border: 1rpx solid #F0EDF8; border-radius: 20rpx;
+  overflow: hidden; }
+.tool-row { display: flex; align-items: center; gap: 14rpx; padding: 16rpx 18rpx;
+  border-bottom: 1rpx solid #F4F2FA; }
+.tool-row:last-child { border-bottom: none; }
+.tool-row:active { background: #F4F0FF; }
+.tool-icon { width: 58rpx; height: 58rpx; border-radius: 18rpx; display: flex;
+  align-items: center; justify-content: center; font-size: 28rpx; flex-shrink: 0; }
+.tool-main { flex: 1; min-width: 0; }
+.tool-name { display: block; font-size: 25rpx; font-weight: 700; color: #3A3F58; }
+.tool-desc { display: block; font-size: 19rpx; color: #A6AAC2; margin-top: 3rpx; }
+.tool-arrow { font-size: 30rpx; color: #C3C7DA; flex-shrink: 0; }
+.panel-body { flex: 1; min-height: 0; overflow-y: auto; margin-top: 14rpx; }
+.btn { margin: 0; border-radius: 18rpx; font-size: 26rpx; font-weight: 700; }
+.btn.primary { color: #fff; background: linear-gradient(135deg, #7C8BFF, #A78BFA); }
+.btn.ghost { color: #6C7BF5; background: #F2F1FF; }
+.btn.small { height: 60rpx; line-height: 60rpx; font-size: 22rpx; padding: 0 20rpx; }
 .btn-off { opacity: .55; }
-.hint { display: block; font-size: 21rpx; color: #A6AAC2; line-height: 1.6; margin-top: 10rpx; }
-.error-box { background: #FFEDEE; border-radius: 14rpx; padding: 12rpx 14rpx;
-  font-size: 22rpx; color: #C94F4F; margin-bottom: 12rpx; }
-.draft-list { margin-top: 16rpx; }
-.draft { background: #FAF9FF; border: 1rpx solid #E9E6F4; border-radius: 18rpx;
-  padding: 16rpx; margin-bottom: 14rpx; }
-.draft-line { display: flex; align-items: center; gap: 10rpx; margin-bottom: 10rpx; }
-.draft-label { width: 80rpx; font-size: 22rpx; color: #8A90A8; flex-shrink: 0; }
-.draft-input { flex: 1; height: 60rpx; background: #FFF; border: 1rpx solid #E9E6F4;
-  border-radius: 12rpx; padding: 0 14rpx; font-size: 25rpx; color: #3A3F58; }
-.draft-unit { font-size: 21rpx; color: #8A90A8; }
+.hint { display: block; font-size: 20rpx; color: #A6AAC2; line-height: 1.6; margin-top: 8rpx; }
+.error-box { background: #FFEDEE; border-radius: 12rpx; padding: 10rpx 12rpx;
+  font-size: 21rpx; color: #C94F4F; margin-top: 10rpx; flex-shrink: 0; }
+.draft-list { margin-top: 12rpx; }
+.draft { background: #FAF9FF; border: 1rpx solid #E9E6F4; border-radius: 16rpx;
+  padding: 14rpx; margin-bottom: 12rpx; }
+.draft-line { display: flex; align-items: center; gap: 10rpx; margin-bottom: 9rpx; }
+.draft-label { width: 74rpx; font-size: 21rpx; color: #8A90A8; flex-shrink: 0; }
+.draft-input { flex: 1; height: 56rpx; background: #FFF; border: 1rpx solid #E9E6F4;
+  border-radius: 10rpx; padding: 0 12rpx; font-size: 24rpx; color: #3A3F58; }
+.draft-unit { font-size: 20rpx; color: #8A90A8; }
 .draft-picker { flex: 1; }
-.picker-box { height: 60rpx; line-height: 60rpx; background: #FFF; border: 1rpx solid #E9E6F4;
-  border-radius: 12rpx; padding: 0 14rpx; font-size: 24rpx; color: #3A3F58; }
+.picker-box { height: 56rpx; line-height: 56rpx; background: #FFF; border: 1rpx solid #E9E6F4;
+  border-radius: 10rpx; padding: 0 12rpx; font-size: 23rpx; color: #3A3F58; }
 .arrow { float: right; color: #A6AAC2; }
-.draft-content { width: 100%; min-height: 100rpx; background: #FFF; border: 1rpx solid #E9E6F4;
-  border-radius: 12rpx; padding: 12rpx; font-size: 24rpx; box-sizing: border-box; margin-top: 8rpx; }
-.draft-actions { display: flex; align-items: center; justify-content: space-between; gap: 12rpx;
-  margin-top: 12rpx; }
-.muted { font-size: 20rpx; color: #A6AAC2; }
-.note-input { width: 100%; min-height: 180rpx; background: #FAF9FF; border: 1rpx solid #E9E6F4;
-  border-radius: 16rpx; padding: 16rpx; font-size: 25rpx; box-sizing: border-box; margin-bottom: 14rpx; }
-.summary-text { display: block; margin-top: 18rpx; background: #FAF9FF; border-radius: 16rpx;
-  padding: 18rpx; font-size: 25rpx; color: #4A4F6B; line-height: 1.8; }
-.empty-box { margin-top: 18rpx; text-align: center; font-size: 23rpx; color: #8A90A8; }
-.sheet-links { display: flex; gap: 24rpx; margin-top: 24rpx; padding-top: 18rpx;
-  border-top: 1rpx dashed #F0EDF8; }
-.link { font-size: 23rpx; color: #6C7BF5; }
+.draft-actions { display: flex; align-items: center; justify-content: space-between;
+  gap: 10rpx; margin-top: 10rpx; }
+.muted { font-size: 19rpx; color: #A6AAC2; }
+.note-input { width: 100%; min-height: 150rpx; background: #FAF9FF; border: 1rpx solid #E9E6F4;
+  border-radius: 14rpx; padding: 14rpx; font-size: 24rpx; box-sizing: border-box; margin-bottom: 12rpx; }
+.draft-content { width: 100%; min-height: 80rpx; background: #FFF; border: 1rpx solid #E9E6F4;
+  border-radius: 10rpx; padding: 10rpx; font-size: 23rpx; box-sizing: border-box; margin-top: 8rpx; }
+.empty-box { text-align: center; font-size: 22rpx; color: #8A90A8; padding: 34rpx 0; }
+.reselect { margin-top: 14rpx; height: 68rpx; font-size: 24rpx; }
 </style>

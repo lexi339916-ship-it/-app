@@ -134,7 +134,11 @@ function reset() {
   error.value = null
 }
 
-onLoad(() => {})
+onLoad((options) => {
+  if (options && options.pick === '1') {
+    setTimeout(() => chooseFile(), 300)
+  }
+})
 </script>
 
 <template>

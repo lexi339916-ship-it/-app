@@ -150,6 +150,18 @@ r = client.post(f"/api/notifications/agent/{ids['agent_budget']}/action",
 check("Agent 不支持采纳 400", r.status_code == 400, r.text)
 r = client.get("/api/notifications", headers=H_A, params={"source": "other"})
 check("非法来源 400", r.status_code == 400, r.text)
+r = client.get("/api/notifications", headers=H_A, params={"group": "budget_over"})
+check("预算超支分组", r.status_code == 200
+      and any(item["alert_type"] == "budget_100" for item in r.json())
+      and all(item["alert_type"] in ("budget_100", "budget") for item in r.json()), r.text)
+r = client.get("/api/notifications", headers=H_A, params={"group": "budget_near"})
+check("预算不足分组", r.status_code == 200
+      and all(item["alert_type"] in ("budget_80", "budget") for item in r.json()), r.text)
+r = client.get("/api/notifications", headers=H_A, params={"group": "other"})
+check("异常/其他分组", r.status_code == 200
+      and any(item["alert_type"] == "anomaly" for item in r.json()), r.text)
+r = client.get("/api/notifications", headers=H_A, params={"group": "bad"})
+check("非法分组 400", r.status_code == 400, r.text)
 r = client.get("/api/notifications/summary")
 check("未登录 401", r.status_code == 401, r.text)
 

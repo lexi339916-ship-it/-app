@@ -44,6 +44,8 @@ class Bill(Base):
     id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     category_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # 可选：关联到用户维护的资产账户；为空表示不计入资产账本（兼容旧账单）
+    account_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     type: Mapped[str] = mapped_column(Enum("income", "expense"), nullable=False)
     amount: Mapped[Decimal] = mapped_column(DECIMAL(12, 2), nullable=False)
     bill_date: Mapped[datetime] = mapped_column(Date, nullable=False)
@@ -382,3 +384,79 @@ class AgentNotification(Base):
         Index("idx_agent_notif_user", "user_id", "status", "created_at"),
     )
 
+
+# ========== 个人资产管理（新增独立账本，不改变现有账单统计口径） ==========
+
+
+class AssetAccount(Base):
+    """用户手动维护的资产账户；余额由 asset_transactions 变动，不接真实银行账户。"""
+    __tablename__ = "asset_accounts"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    # cash / bank / wechat / alipay / savings / other
+    type: Mapped[str] = mapped_column(String(20), nullable=False, default="other")
+    institution: Mapped[str] = mapped_column(String(50), nullable=False, default="")
+    # 只允许保存尾号等提示信息，禁止保存完整卡号/账号
+    account_hint: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    balance: Mapped[Decimal] = mapped_column(DECIMAL(14, 2), nullable=False, default=0)
+    note: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.now, onupdate=datetime.now)
+
+    __table_args__ = (Index("idx_asset_account_user", "user_id", "is_active"),)
+
+
+class AssetLiability(Base):
+    """用户手动维护的负债；outstanding 为当前欠款，还款会同时减少资产账户余额。"""
+    __tablename__ = "asset_liabilities"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    # credit_card / installment / personal_loan / other
+    type: Mapped[str] = mapped_column(String(20), nullable=False, default="other")
+    outstanding: Mapped[Decimal] = mapped_column(DECIMAL(14, 2), nullable=False, default=0)
+    due_date: Mapped[datetime | None] = mapped_column(Date, nullable=True)
+    remark: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="active")  # active/repaid
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.now, onupdate=datetime.now)
+
+    __table_args__ = (Index("idx_asset_liability_user", "user_id", "is_active"),)
+
+
+class AssetTransaction(Base):
+    """资产/负债变动流水（只追加，冲正用 bill_reversal 记录，不覆盖历史）。"""
+    __tablename__ = "asset_transactions"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    account_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    liability_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    # opening/manual_in/manual_out/adjustment/transfer_in/transfer_out/
+    # bill_expense/bill_income/bill_reversal/liability_increase/liability_repay/liability_adjustment
+    type: Mapped[str] = mapped_column(String(30), nullable=False, default="adjustment")
+    # 相对于被跟踪的余额：in=余额/欠款增加，out=余额/欠款减少
+    direction: Mapped[str] = mapped_column(String(4), nullable=False, default="in")
+    amount: Mapped[Decimal] = mapped_column(DECIMAL(14, 2), nullable=False, default=0)
+    before_amount: Mapped[Decimal] = mapped_column(DECIMAL(14, 2), nullable=False, default=0)
+    after_amount: Mapped[Decimal] = mapped_column(DECIMAL(14, 2), nullable=False, default=0)
+    note: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
+    related_bill_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    transfer_group_id: Mapped[str] = mapped_column(String(40), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="posted")  # posted/reversed
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now)
+
+    __table_args__ = (
+        Index("idx_asset_tx_user_time", "user_id", "created_at"),
+        Index("idx_asset_tx_account_time", "account_id", "created_at"),
+        Index("idx_asset_tx_liability_time", "liability_id", "created_at"),
+        Index("idx_asset_tx_bill", "related_bill_id"),
+    )

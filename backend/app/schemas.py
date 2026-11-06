@@ -78,6 +78,8 @@ class BillIn(BaseModel):
     source: Literal["manual", "ai", "receipt", "agent", "csv", "subscription"] = "manual"
     pay_channel: str = Field(default="", max_length=20)
     funding_account: str = Field(default="", max_length=40)
+    # 可选：关联资产账户；新建账单会同步账户余额，旧账单补关联不追溯
+    account_id: int | None = None
 
 
 class BillOut(BaseModel):
@@ -86,6 +88,8 @@ class BillOut(BaseModel):
     amount: Decimal
     category: str
     category_id: int | None
+    account_id: int | None = None
+    account_name: str = ""
     bill_date: date
     remark: str
     source: str
@@ -1020,3 +1024,174 @@ class CsvConfirmOut(BaseModel):
     expense_total: Decimal
     created_ids: list[int] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+
+
+# ---------- 个人资产管理 ----------
+# 金额全部使用 Decimal；账户/负债/流水均按 user_id 隔离。
+
+AssetAccountType = Literal["cash", "bank", "wechat", "alipay", "savings", "other"]
+AssetLiabilityType = Literal["credit_card", "installment", "personal_loan", "other"]
+
+
+class AssetAccountIn(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    type: AssetAccountType = "other"
+    institution: str = Field(default="", max_length=50)
+    account_hint: str = Field(default="", max_length=32)
+    balance: Decimal = Field(default=0, ge=0, max_digits=14, decimal_places=2)
+    note: str = Field(default="", max_length=200)
+
+    @field_validator("account_hint")
+    @classmethod
+    def _only_last_four(cls, value):
+        # 隐私保护：即使前端误传完整账号，也只保留后 4 位
+        return (value or "").strip()[-4:]
+
+
+class AssetAccountUpdateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    type: AssetAccountType = "other"
+    institution: str = Field(default="", max_length=50)
+    account_hint: str = Field(default="", max_length=32)
+    note: str = Field(default="", max_length=200)
+
+    @field_validator("account_hint")
+    @classmethod
+    def _only_last_four(cls, value):
+        return (value or "").strip()[-4:]
+
+
+class AssetAccountOut(BaseModel):
+    id: int
+    name: str
+    type: str
+    institution: str
+    account_hint: str
+    balance: Decimal
+    note: str
+    is_active: bool = True
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssetAccountChangeIn(BaseModel):
+    kind: Literal["increase", "decrease", "adjust"]
+    amount: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    target_balance: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    note: str = Field(default="", max_length=200)
+
+
+class AssetLiabilityIn(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    type: AssetLiabilityType = "other"
+    outstanding: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    due_date: date | None = None
+    remark: str = Field(default="", max_length=200)
+
+
+class AssetLiabilityUpdateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    type: AssetLiabilityType = "other"
+    due_date: date | None = None
+    remark: str = Field(default="", max_length=200)
+
+
+class AssetLiabilityOut(BaseModel):
+    id: int
+    name: str
+    type: str
+    outstanding: Decimal
+    due_date: date | None = None
+    remark: str
+    status: str
+    is_active: bool = True
+    days_left: int | None = None
+    is_overdue: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssetLiabilityRepayIn(BaseModel):
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    account_id: int
+    note: str = Field(default="", max_length=200)
+
+
+class AssetLiabilityAdjustIn(BaseModel):
+    target_outstanding: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    note: str = Field(default="", max_length=200)
+
+
+class AssetTransferIn(BaseModel):
+    from_account_id: int
+    to_account_id: int
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    note: str = Field(default="", max_length=200)
+
+
+class AssetTransactionOut(BaseModel):
+    id: int
+    account_id: int | None = None
+    liability_id: int | None = None
+    account_name: str = ""
+    liability_name: str = ""
+    type: str
+    direction: str
+    amount: Decimal
+    before_amount: Decimal
+    after_amount: Decimal
+    note: str
+    source: str
+    related_bill_id: int | None = None
+    transfer_group_id: str = ""
+    status: str
+    created_at: datetime
+
+
+class AssetTransactionPageOut(BaseModel):
+    items: list[AssetTransactionOut] = Field(default_factory=list)
+    total: int = 0
+    page: int = 1
+    page_size: int = 20
+
+
+class AssetTransferOut(BaseModel):
+    ok: bool = True
+    transfer_group_id: str
+    from_account: AssetAccountOut
+    to_account: AssetAccountOut
+    transactions: list[AssetTransactionOut] = Field(default_factory=list)
+
+
+class AssetOverviewOut(BaseModel):
+    total_assets: Decimal
+    total_liabilities: Decimal
+    net_worth: Decimal
+    account_count: int
+    liability_count: int
+    accounts: list[AssetAccountOut] = Field(default_factory=list)
+    liabilities: list[AssetLiabilityOut] = Field(default_factory=list)
+    last_updated_at: datetime | None = None
+    as_of: datetime
+    has_data: bool = False
+
+
+class AssetChangeAnalysisOut(BaseModel):
+    month: str
+    net_worth_change: Decimal
+    components: dict[str, Decimal] = Field(default_factory=dict)
+    linked_expense: Decimal
+    total_expense: Decimal
+    unlinked_expense: Decimal
+    coverage_ratio: float = 0.0
+    has_data: bool = False
+    transfer_count: int = 0
+    transfer_gross: Decimal = Decimal("0")
+    message: str = ""
+    as_of: datetime
+
+
+class AssetDeleteOut(BaseModel):
+    ok: bool = True
+    archived: bool = False
+    message: str = ""

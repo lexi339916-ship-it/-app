@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS bills (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
   category_id BIGINT NULL,
+  -- 可选：关联用户维护的资产账户；为空表示不计入资产账本（兼容旧账单）
+  account_id BIGINT NULL,
   type ENUM('income','expense') NOT NULL,
   amount DECIMAL(12,2) NOT NULL,
   bill_date DATE NOT NULL,
@@ -40,6 +42,7 @@ CREATE TABLE IF NOT EXISTS bills (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_bill_user_date (user_id, bill_date),
+  INDEX idx_bill_account (account_id),
   CONSTRAINT fk_bill_user FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_bill_category FOREIGN KEY (category_id) REFERENCES bill_categories(id)
 ) ENGINE=InnoDB;
@@ -306,6 +309,66 @@ CREATE TABLE IF NOT EXISTS budget_plans (
   applied TINYINT NOT NULL DEFAULT 0,                      -- 0 未采纳 / 1 已写入 category_budgets
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_plan_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+-- ========== 个人资产管理（独立账本，不改变账单统计口径） ==========
+
+-- 资产账户：余额由 asset_transactions 变动；只保存尾号提示，不保存完整卡号
+CREATE TABLE IF NOT EXISTS asset_accounts (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  name VARCHAR(50) NOT NULL,
+  type VARCHAR(20) NOT NULL DEFAULT 'other',               -- cash/bank/wechat/alipay/savings/other
+  institution VARCHAR(50) NOT NULL DEFAULT '',
+  account_hint VARCHAR(8) NOT NULL DEFAULT '',             -- 仅尾号等提示
+  balance DECIMAL(14,2) NOT NULL DEFAULT 0,
+  note VARCHAR(200) NOT NULL DEFAULT '',
+  is_active TINYINT NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_asset_account_user (user_id, is_active),
+  CONSTRAINT fk_asset_account_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+-- 负债：信用卡、分期、个人借款等；outstanding 为当前欠款
+CREATE TABLE IF NOT EXISTS asset_liabilities (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  name VARCHAR(50) NOT NULL,
+  type VARCHAR(20) NOT NULL DEFAULT 'other',               -- credit_card/installment/personal_loan/other
+  outstanding DECIMAL(14,2) NOT NULL DEFAULT 0,
+  due_date DATE NULL,
+  remark VARCHAR(200) NOT NULL DEFAULT '',
+  status VARCHAR(10) NOT NULL DEFAULT 'active',            -- active/repaid
+  is_active TINYINT NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_asset_liability_user (user_id, is_active),
+  CONSTRAINT fk_asset_liability_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+-- 资产/负债变动流水：只追加；冲正用 bill_reversal，不覆盖历史
+CREATE TABLE IF NOT EXISTS asset_transactions (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  account_id BIGINT NULL,
+  liability_id BIGINT NULL,
+  type VARCHAR(30) NOT NULL DEFAULT 'adjustment',
+  direction VARCHAR(4) NOT NULL DEFAULT 'in',              -- in=余额/欠款增加，out=减少
+  amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+  before_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+  after_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+  note VARCHAR(200) NOT NULL DEFAULT '',
+  source VARCHAR(20) NOT NULL DEFAULT 'manual',
+  related_bill_id BIGINT NULL,
+  transfer_group_id VARCHAR(40) NOT NULL DEFAULT '',
+  status VARCHAR(10) NOT NULL DEFAULT 'posted',            -- posted/reversed
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_asset_tx_user_time (user_id, created_at),
+  INDEX idx_asset_tx_account_time (account_id, created_at),
+  INDEX idx_asset_tx_liability_time (liability_id, created_at),
+  INDEX idx_asset_tx_bill (related_bill_id),
+  CONSTRAINT fk_asset_tx_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
 -- 系统预置分类（与后端 app/main.py 的 DEFAULT_CATEGORIES 一致）

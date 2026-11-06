@@ -119,6 +119,7 @@ function removeAvatar() {
 function goBudget() { uni.navigateTo({ url: '/pages/budget/center' }) }
 function goGoals() { uni.navigateTo({ url: '/pages/goals/goals' }) }
 function goSubscriptions() { uni.navigateTo({ url: '/pages/subscriptions/list' }) }
+function goAssets() { uni.navigateTo({ url: '/pages/assets/assets' }) }
 
 function logout() {
   uni.showModal({
@@ -212,6 +213,14 @@ onShow(() => {
     <!-- 常用功能 -->
     <text class="group-title">常用功能</text>
     <view class="group-card">
+      <view class="menu-item" @click="goAssets">
+        <view class="menu-icon" style="background: #EFF1FF"><image class="menu-img" src="/static/icons/act_wallet.png" mode="widthFix" /></view>
+        <view class="menu-main">
+          <text class="menu-title">个人资产管理</text>
+          <text class="menu-sub">资产总览 · 账户管理 · 负债管理</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
       <view class="menu-item" @click="goBudget">
         <view class="menu-icon" style="background: #FFEFF2"><image class="menu-img" src="/static/icons/act_wallet.png" mode="widthFix" /></view>
         <view class="menu-main">

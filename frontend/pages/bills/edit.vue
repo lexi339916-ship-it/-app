@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { apiBill, apiAddBill, apiUpdateBill, apiDeleteBill, apiCategories, apiBillCheck, apiAlertAction } from '../../api/index.js'
+import { apiAssetAccounts } from '../../api/assets.js'
 import { categoryMeta } from '../../common/category-icons.js'
 import BudgetAlertPopup from '../../components/budget-alert-popup.vue'
 
@@ -13,6 +14,8 @@ const billDate = ref('')
 const remark = ref('')
 const payChannel = ref('')
 const fundingAccount = ref('')
+const accountId = ref(null)
+const accounts = ref([])
 const categories = ref([])
 const saving = ref(false)
 // OCR 截图识别进入：保存时 source 标记为 receipt（截图草稿统一进 Agent 工具抽屉）
@@ -26,10 +29,27 @@ const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
   .toISOString().slice(0, 10)
 
 const typeCategories = computed(() => categories.value.filter(c => c.type === type.value))
+const accountOptions = computed(() => [{ id: null, name: '不关联资产账户' }, ...accounts.value])
+const accountIndex = computed(() => {
+  const index = accountOptions.value.findIndex(a => a.id === accountId.value)
+  return index >= 0 ? index : 0
+})
 
 async function loadCategories() {
   const res = await apiCategories()
   categories.value = res.items
+}
+
+async function loadAccounts() {
+  try {
+    accounts.value = await apiAssetAccounts()
+  } catch (e) { /* 资产账户失败不阻塞记账 */ }
+}
+
+function selectAccount(e) {
+  const option = accountOptions.value[Number(e.detail.value)]
+  accountId.value = option ? option.id : null
+  if (option && option.id != null) fundingAccount.value = option.name
 }
 
 function switchType(t) {
@@ -51,6 +71,7 @@ async function loadBill(id) {
   remark.value = b.remark
   payChannel.value = b.pay_channel || ''
   fundingAccount.value = b.funding_account || ''
+  accountId.value = b.account_id || null
   originalSource.value = b.source || 'manual'
 }
 
@@ -73,6 +94,7 @@ async function save() {
     source: fromReceipt.value ? 'receipt' : (editId.value ? originalSource.value : 'manual'),
     pay_channel: payChannel.value,
     funding_account: fundingAccount.value,
+    account_id: accountId.value,
   }
   saving.value = true
   try {
@@ -127,7 +149,7 @@ onLoad(async (options) => {
   if (options && options.date && /^\d{4}-\d{2}-\d{2}$/.test(options.date)) {
     billDate.value = options.date
   }
-  await loadCategories()
+  await Promise.all([loadCategories(), loadAccounts()])
   if (options && options.id) {
     editId.value = Number(options.id)
     uni.setNavigationBarTitle({ title: '编辑账单' })
@@ -198,6 +220,20 @@ onLoad(async (options) => {
           <text>{{ c }}</text>
         </view>
       </view>
+
+      <!-- 关联资产账户：新建账单会同步余额，旧账单补关联不追溯 -->
+      <text class="field-label">关联资产账户（选填）</text>
+      <picker v-if="accounts.length" mode="selector" :range="accountOptions"
+        range-key="name" :value="accountIndex" @change="selectAccount">
+        <view class="picker-value">
+          {{ accountId != null ? (accounts.find(a => a.id === accountId) || {}).name : '不关联资产账户' }} ▾
+        </view>
+      </picker>
+      <view v-else class="account-empty">还没有资产账户，可在「我的 → 个人资产管理」添加</view>
+      <text v-if="accountId != null" class="account-hint">
+        保存后会按这笔账单同步账户余额；旧账单补关联不追溯扣款。
+      </text>
+
       <input v-if="payChannel" class="input channel-account" v-model="fundingAccount"
         placeholder="扣款账户（选填），如：零钱 / 工商银行储蓄卡" placeholder-class="ph" />
     </view>
@@ -234,6 +270,8 @@ onLoad(async (options) => {
 .cat-emoji-img { width: 48rpx; height: 48rpx; }
 .cat-selected { background: #6C7BF5; color: #fff; font-weight: 700; }
 .channel-account { margin-top: 16rpx; }
+.account-empty { font-size: 23rpx; color: #A6AAC2; line-height: 1.6; padding: 12rpx 4rpx; }
+.account-hint { display: block; font-size: 21rpx; color: #B08A55; line-height: 1.6; margin-top: 10rpx; }
 .picker-value { height: 88rpx; background: #F6F4FB; border-radius: 20rpx;
   display: flex; align-items: center; padding: 0 24rpx; font-size: 30rpx; }
 

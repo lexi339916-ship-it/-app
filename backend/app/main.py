@@ -12,7 +12,7 @@ from app import config
 from app.database import Base, engine, SessionLocal
 from app.models import BillCategory
 from app.routers import (
-    agent, ai, auth, bills, budget_center, budgets, categories, challenges,
+    agent, ai, assets, auth, bills, budget_center, budgets, categories, challenges,
     consumption_health, decision_simulator, goals, imports, notes, notifications,
     statistics, subscriptions, voice,
 )
@@ -50,6 +50,9 @@ def _ensure_schema_patches() -> None:
     patches = {
         "users": {
             "avatar": "ALTER TABLE users ADD COLUMN avatar MEDIUMTEXT",
+        },
+        "bills": {
+            "account_id": "ALTER TABLE bills ADD COLUMN account_id BIGINT",
         },
         "subscriptions": {
             "category_id": "ALTER TABLE subscriptions ADD COLUMN category_id BIGINT",
@@ -118,6 +121,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
 app.include_router(agent.router, prefix="/api/agent", tags=["Agent"])
+app.include_router(assets.router, prefix="/api/assets", tags=["个人资产"])
 app.include_router(categories.router, prefix="/api/categories", tags=["分类"])
 app.include_router(bills.router, prefix="/api/bills", tags=["账单"])
 app.include_router(notes.router, prefix="/api/notes", tags=["便签"])

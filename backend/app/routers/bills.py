@@ -7,8 +7,9 @@ from sqlalchemy import extract, func, select
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user, get_db
-from app.models import Bill, BillCategory, User
+from app.models import AssetAccount, Bill, BillCategory, User
 from app.schemas import BillIn, BillOut, BillPageOut
+from app.services import asset_service
 
 router = APIRouter()
 
@@ -24,15 +25,30 @@ def _resolve_category(db: Session, user: User, name: str, type_: str) -> BillCat
     return row
 
 
+def _resolve_account(db: Session, user: User, account_id: int | None) -> AssetAccount | None:
+    if account_id is None:
+        return None
+    row = db.get(AssetAccount, int(account_id))
+    if row is None or row.user_id != user.id or not row.is_active:
+        raise HTTPException(400, "所选资产账户不存在或已停用")
+    return row
+
+
 def _to_out(db: Session, row: Bill) -> BillOut:
     category_name = "未分类"
     if row.category_id:
         cat = db.get(BillCategory, row.category_id)
         if cat:
             category_name = cat.name
+    account_name = ""
+    if row.account_id:
+        account = db.get(AssetAccount, row.account_id)
+        if account:
+            account_name = account.name
     return BillOut(
         id=row.id, type=row.type, amount=row.amount, category=category_name,
-        category_id=row.category_id, bill_date=row.bill_date, remark=row.remark,
+        category_id=row.category_id, account_id=row.account_id,
+        account_name=account_name, bill_date=row.bill_date, remark=row.remark,
         source=row.source, pay_channel=row.pay_channel or "",
         funding_account=row.funding_account or "", created_at=row.created_at)
 
@@ -96,13 +112,23 @@ def create_bill(data: BillIn, user: User = Depends(get_current_user),
     if data.amount <= 0 or data.amount > Decimal("9999999999.99"):
         raise HTTPException(400, "金额必须在 0.01 ~ 9999999999.99 之间")
     cat = _resolve_category(db, user, data.category, data.type)
+    account = _resolve_account(db, user, data.account_id)
     row = Bill(
-        user_id=user.id, category_id=cat.id, type=data.type,
-        amount=data.amount, bill_date=data.bill_date,
+        user_id=user.id, category_id=cat.id, account_id=account.id if account else None,
+        type=data.type, amount=data.amount, bill_date=data.bill_date,
         remark=data.remark, source=data.source,
-        pay_channel=data.pay_channel, funding_account=data.funding_account)
+        pay_channel=data.pay_channel,
+        funding_account=(data.funding_account or (account.name if account else ""))[:40])
     db.add(row)
-    db.commit()
+    try:
+        db.flush()
+        if account:
+            # 新建账单显式关联账户时才影响资产余额
+            asset_service.post_bill_movement(db, user, row)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(row)
     return _to_out(db, row)
 
@@ -118,15 +144,33 @@ def update_bill(bill_id: int, data: BillIn, user: User = Depends(get_current_use
                 db: Session = Depends(get_db)):
     row = _get_owned(db, user, bill_id)
     cat = _resolve_category(db, user, data.category, data.type)
-    row.type = data.type
-    row.amount = data.amount
-    row.bill_date = data.bill_date
-    row.remark = data.remark
-    row.category_id = cat.id
-    row.source = data.source
-    row.pay_channel = data.pay_channel
-    row.funding_account = data.funding_account
-    db.commit()
+    account = _resolve_account(db, user, data.account_id)
+    old_account_id = row.account_id
+    old_type, old_amount = row.type, row.amount
+    new_account_id = account.id if account else None
+    ledger_changed = bool(old_account_id) and (
+        old_type != data.type or old_amount != data.amount
+        or old_account_id != new_account_id)
+    reversed_count = 0
+    try:
+        # 旧关联账单的金额/类型/账户发生变化时才冲正；只改备注不动余额
+        if ledger_changed:
+            reversed_count = asset_service.reverse_bill_movements(db, user, row)
+        row.type = data.type
+        row.amount = data.amount
+        row.bill_date = data.bill_date
+        row.remark = data.remark
+        row.category_id = cat.id
+        row.source = data.source
+        row.pay_channel = data.pay_channel
+        row.funding_account = (data.funding_account or (account.name if account else ""))[:40]
+        row.account_id = new_account_id
+        if account and reversed_count > 0:
+            asset_service.post_bill_movement(db, user, row)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(row)
     return _to_out(db, row)
 
@@ -135,6 +179,12 @@ def update_bill(bill_id: int, data: BillIn, user: User = Depends(get_current_use
 def delete_bill(bill_id: int, user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
     row = _get_owned(db, user, bill_id)
-    db.delete(row)
-    db.commit()
+    try:
+        if row.account_id:
+            asset_service.reverse_bill_movements(db, user, row)
+        db.delete(row)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return {"ok": True}

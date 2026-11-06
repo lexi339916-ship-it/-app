@@ -14,6 +14,7 @@
 - **行动**：读写工具分离；写操作先出 diff，用户批准后才执行。
 - **反思**：执行后回查数据库；偏离时重规划；支持撤销。
 - **主动**：预算超支、订阅涨价/低频、目标延期、消费变化、异常大额、计划采购。
+- **资产**：手动维护现金/银行/微信/支付宝/储蓄账户与信用卡/分期/借款负债；转账不计消费，净资产由后端 Decimal 计算。
 - **可解释**：数字来自 SQL/工具，带来源、公式、`as_of`；不展示模型原始思维链。
 
 ## 三个英雄场景
@@ -76,6 +77,7 @@ python tests/health_report_test.py
 python tests/notifications_test.py
 python tests/avatar_test.py
 python tests/bills_filter_test.py
+python tests/assets_test.py
 python tests/csv_import_test.py
 ```
 

@@ -56,6 +56,7 @@ app/
   新增 `/api/notifications/*` 聚合读模型；旧接口不变。
 - **预算**：`category_budgets` 是唯一写入源；`/api/budgets` 在存在分类预算时返回只读投影。
 - **头像**：`users.avatar` 存 256×256 JPEG data URL，不保存原图。
+- **个人资产**：`asset_accounts/asset_liabilities/asset_transactions` 独立账本；转账只写两条流水、不生成账单；账单显式关联 `account_id` 才影响余额。
 - **CSV**：`/api/imports/*` 支持 UTF-8/GBK、常见微信/支付宝/通用表头、预览去重。
 - **统一错误**：`{"code": HTTP状态码, "message": 提示}`；参数校验 422 并注明字段。
 
@@ -67,6 +68,7 @@ python tests/agent_smoke.py
 python tests/avatar_test.py
 python tests/notifications_test.py
 python tests/budget_consistency_test.py
+python tests/assets_test.py
 python tests/version_test.py
 python tests/agent_eval/run_flow_eval.py
 ```

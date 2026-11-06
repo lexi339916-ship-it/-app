@@ -30,10 +30,12 @@ from app.database import Base, SessionLocal, engine  # noqa: E402
 from app.main import _ensure_schema_patches, seed_default_categories  # noqa: E402
 from app.models import (  # noqa: E402
     AICallLog, AgentApproval, AgentMemory, AgentNotification, AgentRun, AgentStep,
+    AssetAccount, AssetLiability, AssetTransaction,
     Bill, BillCategory, Budget, BudgetAlert, BudgetPlan, CategoryBudget, Challenge,
     GoalDeposit, Note, SavingsGoal, Subscription, SubscriptionBilling, User,
 )
 from app.security import hash_password  # noqa: E402
+from app.services import asset_service  # noqa: E402
 
 DEMO_USERNAME = "judge_demo"
 DEMO_PASSWORD = "judge2026"
@@ -67,6 +69,9 @@ def reset_demo(db, user: User) -> None:
     db.query(AgentRun).filter(AgentRun.user_id == user.id).delete(synchronize_session=False)
     db.query(AgentMemory).filter(AgentMemory.user_id == user.id).delete(synchronize_session=False)
     db.query(AgentNotification).filter(AgentNotification.user_id == user.id).delete(synchronize_session=False)
+    db.query(AssetTransaction).filter(AssetTransaction.user_id == user.id).delete(synchronize_session=False)
+    db.query(AssetAccount).filter(AssetAccount.user_id == user.id).delete(synchronize_session=False)
+    db.query(AssetLiability).filter(AssetLiability.user_id == user.id).delete(synchronize_session=False)
     db.query(GoalDeposit).filter(GoalDeposit.user_id == user.id).delete(synchronize_session=False)
     db.query(Bill).filter(Bill.user_id == user.id).delete(synchronize_session=False)
     db.query(Note).filter(Note.user_id == user.id).delete(synchronize_session=False)
@@ -90,6 +95,99 @@ def add_bill(db, user: User, cats: dict[str, int], month: str, day: int,
         amount=Decimal(amount), bill_date=_day(month, day), remark=remark,
         source=source, pay_channel=channel if type_ == "expense" else "",
         funding_account=""))
+
+
+def seed_assets(db, user: User, cats: dict[str, int]) -> None:
+    """合成资产演示数据：4 个账户、2 个负债、1 笔转账、部分账单关联。
+
+    这些数据只用于演示；不包含真实用户账户，也不代表真实余额。
+    """
+    db.flush()
+    now = datetime.now()
+    opening_at = now - timedelta(days=180)
+    bank = AssetAccount(
+        user_id=user.id, name="招商银行储蓄卡", type="bank",
+        institution="招商银行", account_hint="6789",
+        balance=Decimal("18600.00"), note="工资卡", is_active=1)
+    wechat = AssetAccount(
+        user_id=user.id, name="微信零钱", type="wechat",
+        institution="微信", balance=Decimal("2000.00"), is_active=1)
+    alipay = AssetAccount(
+        user_id=user.id, name="支付宝余额", type="alipay",
+        institution="支付宝", balance=Decimal("1240.00"), is_active=1)
+    savings = AssetAccount(
+        user_id=user.id, name="应急储蓄", type="savings",
+        institution="招商银行", balance=Decimal("8000.00"),
+        note="至少保留 1 个月开支", is_active=1)
+    accounts = [bank, wechat, alipay, savings]
+    db.add_all(accounts)
+    db.flush()
+
+    # 初始余额流水放在半年前，避免污染“本月净资产变化”演示
+    for account in accounts:
+        amount = Decimal(str(account.balance))
+        db.add(AssetTransaction(
+            user_id=user.id, account_id=account.id, type="opening",
+            direction="in", amount=amount, before_amount=Decimal("0"),
+            after_amount=amount, note="初始余额", source="manual",
+            status="posted", created_at=opening_at))
+
+    # 账户间转账：只写两条流水，不生成账单
+    transfer_at = now - timedelta(days=2)
+    group = f"demo-transfer-{user.id}"
+    bank.balance = Decimal("18100.00")
+    alipay.balance = Decimal("1740.00")
+    db.add_all([
+        AssetTransaction(
+            user_id=user.id, account_id=bank.id, type="transfer_out",
+            direction="out", amount=Decimal("500.00"),
+            before_amount=Decimal("18600.00"), after_amount=Decimal("18100.00"),
+            note="转到支付宝余额", source="manual", transfer_group_id=group,
+            status="posted", created_at=transfer_at),
+        AssetTransaction(
+            user_id=user.id, account_id=alipay.id, type="transfer_in",
+            direction="in", amount=Decimal("500.00"),
+            before_amount=Decimal("1240.00"), after_amount=Decimal("1740.00"),
+            note="来自招商银行储蓄卡", source="manual", transfer_group_id=group,
+            status="posted", created_at=transfer_at),
+    ])
+
+    # 负债：信用卡 + 教育分期
+    card = AssetLiability(
+        user_id=user.id, name="招行信用卡", type="credit_card",
+        outstanding=Decimal("1280.00"),
+        due_date=date.today() + timedelta(days=10),
+        remark="本月账单", status="active", is_active=1)
+    installment = AssetLiability(
+        user_id=user.id, name="课程分期", type="installment",
+        outstanding=Decimal("600.00"),
+        due_date=date.today() + timedelta(days=20),
+        remark="还有 3 期", status="active", is_active=1)
+    db.add_all([card, installment])
+    db.flush()
+    for liability in (card, installment):
+        amount = Decimal(str(liability.outstanding))
+        db.add(AssetTransaction(
+            user_id=user.id, liability_id=liability.id,
+            type="liability_increase", direction="in", amount=amount,
+            before_amount=Decimal("0"), after_amount=amount,
+            note="初始欠款", source="manual", status="posted",
+            created_at=now - timedelta(days=90)))
+
+    # 当前月部分账单关联账户，给净资产变化/覆盖率演示提供真实联动
+    links = [
+        ("每月工资", bank),
+        ("房租", bank),
+        ("日常餐饮", wechat),
+        ("日用品与网购", alipay),
+    ]
+    for remark, account in links:
+        bill = db.scalar(
+            select(Bill).where(Bill.user_id == user.id, Bill.remark == remark)
+            .order_by(Bill.bill_date.desc(), Bill.id.desc()).limit(1))
+        if bill and bill.bill_date.strftime("%Y-%m") == CURRENT_MONTH:
+            bill.account_id = account.id
+            asset_service.post_bill_movement(db, user, bill)
 
 
 def seed(db, user: User) -> None:
@@ -167,6 +265,7 @@ def seed(db, user: User) -> None:
                     due_at=datetime.now() + timedelta(days=days),
                     priority=priority, pinned=0, color="lilac"))
 
+    seed_assets(db, user, cats)
     db.commit()
 
 

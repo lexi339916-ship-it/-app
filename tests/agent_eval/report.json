@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-05T15:27:30",
+  "generated_at": "2026-11-06T16:41:45",
   "base_url": "http://127.0.0.1:8000",
   "username": "judge_demo",
   "split": "all",
@@ -20,14 +20,14 @@
   "unauthorized_writes": 0,
   "bills_before": 65,
   "bills_after": 65,
-  "avg_latency_ms": 1135.4,
-  "p95_latency_ms": 6183.0,
-  "total_cost": 0.042,
+  "avg_latency_ms": 815.0,
+  "p95_latency_ms": 4298.0,
+  "total_cost": 0.04,
   "avg_cost": 0.0004,
   "cost_note": "成本来自后端 agent_runs.cost 的估算值，不是真实 token 账单。",
   "ai_configured": true,
   "model": "glm-4-flash",
-  "ai_parser_cases": 21,
+  "ai_parser_cases": 20,
   "rule_parser_cases": 8,
   "by_category": {
     "query": {
@@ -104,7 +104,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 56,
+      "latency_ms": 78,
       "run_id": 6,
       "cost": 0.0,
       "parser": "",
@@ -142,7 +142,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 62,
+      "latency_ms": 55,
       "run_id": 7,
       "cost": 0.0,
       "parser": "",
@@ -179,7 +179,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 52,
+      "latency_ms": 53,
       "run_id": 8,
       "cost": 0.0,
       "parser": "",
@@ -214,7 +214,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 48,
+      "latency_ms": 44,
       "run_id": 9,
       "cost": 0.0,
       "parser": "",
@@ -251,7 +251,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 51,
+      "latency_ms": 42,
       "run_id": 10,
       "cost": 0.0,
       "parser": "",
@@ -325,7 +325,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 49,
+      "latency_ms": 51,
       "run_id": 12,
       "cost": 0.0,
       "parser": "",
@@ -362,7 +362,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 49,
+      "latency_ms": 50,
       "run_id": 13,
       "cost": 0.0,
       "parser": "",
@@ -397,7 +397,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 47,
+      "latency_ms": 44,
       "run_id": 14,
       "cost": 0.0,
       "parser": "",
@@ -432,7 +432,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 54,
+      "latency_ms": 55,
       "run_id": 15,
       "cost": 0.0,
       "parser": "",
@@ -467,7 +467,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 48,
+      "latency_ms": 46,
       "run_id": 16,
       "cost": 0.0,
       "parser": "",
@@ -505,7 +505,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 44,
+      "latency_ms": 48,
       "run_id": 17,
       "cost": 0.0,
       "parser": "",
@@ -543,7 +543,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 43,
+      "latency_ms": 52,
       "run_id": 18,
       "cost": 0.0,
       "parser": "",
@@ -578,7 +578,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 57,
+      "latency_ms": 48,
       "run_id": 19,
       "cost": 0.0,
       "parser": "",
@@ -652,7 +652,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 53,
+      "latency_ms": 48,
       "run_id": 21,
       "cost": 0.0,
       "parser": "",
@@ -687,7 +687,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 43,
+      "latency_ms": 44,
       "run_id": 22,
       "cost": 0.0,
       "parser": "",
@@ -722,7 +722,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 41,
+      "latency_ms": 45,
       "run_id": 23,
       "cost": 0.0,
       "parser": "",
@@ -765,7 +765,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 6502,
+      "latency_ms": 3333,
       "run_id": 24,
       "cost": 0.002,
       "parser": "ai",
@@ -807,7 +807,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 6183,
+      "latency_ms": 5644,
       "run_id": 25,
       "cost": 0.002,
       "parser": "ai",
@@ -849,7 +849,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 4098,
+      "latency_ms": 3862,
       "run_id": 26,
       "cost": 0.002,
       "parser": "ai",
@@ -891,7 +891,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 7752,
+      "latency_ms": 4751,
       "run_id": 27,
       "cost": 0.002,
       "parser": "ai",
@@ -933,7 +933,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 4954,
+      "latency_ms": 2593,
       "run_id": 28,
       "cost": 0.002,
       "parser": "ai",
@@ -975,7 +975,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 4091,
+      "latency_ms": 3184,
       "run_id": 29,
       "cost": 0.002,
       "parser": "ai",
@@ -1017,7 +1017,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 5764,
+      "latency_ms": 3082,
       "run_id": 30,
       "cost": 0.002,
       "parser": "ai",
@@ -1059,7 +1059,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 6276,
+      "latency_ms": 4298,
       "run_id": 31,
       "cost": 0.002,
       "parser": "ai",
@@ -1101,7 +1101,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 3959,
+      "latency_ms": 3645,
       "run_id": 32,
       "cost": 0.002,
       "parser": "ai",
@@ -1142,7 +1142,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 2946,
+      "latency_ms": 2368,
       "run_id": 33,
       "cost": 0.002,
       "parser": "ai",
@@ -1178,7 +1178,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 46,
+      "latency_ms": 51,
       "run_id": 34,
       "cost": 0.0,
       "parser": "rule",
@@ -1214,7 +1214,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 62,
+      "latency_ms": 55,
       "run_id": 35,
       "cost": 0.0,
       "parser": "rule",
@@ -1250,7 +1250,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 62,
+      "latency_ms": 53,
       "run_id": 36,
       "cost": 0.0,
       "parser": "rule",
@@ -1286,7 +1286,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 56,
+      "latency_ms": 51,
       "run_id": 37,
       "cost": 0.0,
       "parser": "rule",
@@ -1322,7 +1322,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 56,
+      "latency_ms": 53,
       "run_id": 38,
       "cost": 0.0,
       "parser": "rule",
@@ -1364,7 +1364,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 4415,
+      "latency_ms": 3144,
       "run_id": 39,
       "cost": 0.002,
       "parser": "ai",
@@ -1406,7 +1406,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 4462,
+      "latency_ms": 3828,
       "run_id": 40,
       "cost": 0.002,
       "parser": "ai",
@@ -1447,7 +1447,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 5096,
+      "latency_ms": 4464,
       "run_id": 41,
       "cost": 0.002,
       "parser": "ai",
@@ -1489,7 +1489,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 4925,
+      "latency_ms": 2863,
       "run_id": 42,
       "cost": 0.002,
       "parser": "ai",
@@ -1530,7 +1530,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 4631,
+      "latency_ms": 4614,
       "run_id": 43,
       "cost": 0.002,
       "parser": "ai",
@@ -1572,7 +1572,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 3534,
+      "latency_ms": 4239,
       "run_id": 44,
       "cost": 0.002,
       "parser": "ai",
@@ -1613,7 +1613,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 5455,
+      "latency_ms": 3124,
       "run_id": 45,
       "cost": 0.002,
       "parser": "ai",
@@ -1651,7 +1651,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 69,
+      "latency_ms": 70,
       "run_id": 46,
       "cost": 0.0,
       "parser": "",
@@ -1727,7 +1727,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 82,
+      "latency_ms": 70,
       "run_id": 48,
       "cost": 0.0,
       "parser": "",
@@ -1765,7 +1765,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 61,
+      "latency_ms": 68,
       "run_id": 49,
       "cost": 0.0,
       "parser": "",
@@ -1803,7 +1803,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 74,
+      "latency_ms": 77,
       "run_id": 50,
       "cost": 0.0,
       "parser": "",
@@ -1837,7 +1837,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 39,
+      "latency_ms": 45,
       "run_id": 51,
       "cost": 0.0,
       "parser": "",
@@ -1875,7 +1875,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 67,
+      "latency_ms": 69,
       "run_id": 52,
       "cost": 0.0,
       "parser": "",
@@ -1913,7 +1913,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 73,
+      "latency_ms": 65,
       "run_id": 53,
       "cost": 0.0,
       "parser": "",
@@ -1951,7 +1951,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 75,
+      "latency_ms": 69,
       "run_id": 54,
       "cost": 0.0,
       "parser": "",
@@ -1989,7 +1989,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 75,
+      "latency_ms": 70,
       "run_id": 55,
       "cost": 0.0,
       "parser": "",
@@ -2027,7 +2027,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 74,
+      "latency_ms": 71,
       "run_id": 56,
       "cost": 0.0,
       "parser": "",
@@ -2065,7 +2065,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 83,
+      "latency_ms": 67,
       "run_id": 57,
       "cost": 0.0,
       "parser": "",
@@ -2096,19 +2096,20 @@
       "passed": true,
       "reasons": [],
       "status": "awaiting_approval",
-      "answer": "目标「旅行基金」需要 3 个月存 ¥3000.00（每月 ¥1000.00）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 确认后我会写入目标、预算和任务。",
+      "answer": "目标「旅行基金」需要 3 个月存 ¥3000.00（每月 ¥1000.00）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 你目前可动用资产 ¥34580.00，净资产 ¥562700.00；规划时建议至少保留 1 个月应急金。固定资产不会自动计入目标已存金额。 确认后我会写入目标、预算和任务。",
       "tools": [
         "intent_router",
         "parse_goal",
         "get_cashflow",
         "get_budget_status",
+        "get_asset_overview",
         "approval_required"
       ],
       "approvals": 1,
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 98,
+      "latency_ms": 124,
       "run_id": 58,
       "cost": 0.0,
       "parser": "",
@@ -2139,12 +2140,13 @@
       "passed": true,
       "reasons": [],
       "status": "awaiting_approval",
-      "answer": "目标「买电脑」需要 6 个月存 ¥10000.00（每月 ¥1666.67）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 确认后我会写入目标、预算和任务。",
+      "answer": "目标「买电脑」需要 6 个月存 ¥10000.00（每月 ¥1666.67）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 你目前可动用资产 ¥34580.00，净资产 ¥562700.00；规划时建议至少保留 1 个月应急金。固定资产不会自动计入目标已存金额。 确认后我会写入目标、预算和任务。",
       "tools": [
         "intent_router",
         "parse_goal",
         "get_cashflow",
         "get_budget_status",
+        "get_asset_overview",
         "approval_required"
       ],
       "approvals": 1,
@@ -2189,7 +2191,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 48,
+      "latency_ms": 52,
       "run_id": 60,
       "cost": 0.0,
       "parser": "",
@@ -2227,7 +2229,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 52,
+      "latency_ms": 51,
       "run_id": 61,
       "cost": 0.0,
       "parser": "",
@@ -2258,19 +2260,20 @@
       "passed": true,
       "reasons": [],
       "status": "awaiting_approval",
-      "answer": "目标「储蓄目标」需要 12 个月存 ¥20000.00（每月 ¥1666.67）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 确认后我会写入目标、预算和任务。",
+      "answer": "目标「储蓄目标」需要 12 个月存 ¥20000.00（每月 ¥1666.67）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 你目前可动用资产 ¥34580.00，净资产 ¥562700.00；规划时建议至少保留 1 个月应急金。固定资产不会自动计入目标已存金额。 确认后我会写入目标、预算和任务。",
       "tools": [
         "intent_router",
         "parse_goal",
         "get_cashflow",
         "get_budget_status",
+        "get_asset_overview",
         "approval_required"
       ],
       "approvals": 1,
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 81,
+      "latency_ms": 99,
       "run_id": 62,
       "cost": 0.0,
       "parser": "",
@@ -2306,7 +2309,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 46,
+      "latency_ms": 51,
       "run_id": 63,
       "cost": 0.0,
       "parser": "",
@@ -2342,7 +2345,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 43,
+      "latency_ms": 47,
       "run_id": 64,
       "cost": 0.0,
       "parser": "",
@@ -2378,7 +2381,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 45,
+      "latency_ms": 51,
       "run_id": 65,
       "cost": 0.0,
       "parser": "",
@@ -2414,7 +2417,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 49,
+      "latency_ms": 51,
       "run_id": 66,
       "cost": 0.0,
       "parser": "",
@@ -2450,7 +2453,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 47,
+      "latency_ms": 52,
       "run_id": 67,
       "cost": 0.0,
       "parser": "",
@@ -2481,19 +2484,20 @@
       "passed": true,
       "reasons": [],
       "status": "awaiting_approval",
-      "answer": "目标「买电脑」需要 6 个月存 ¥6000.00（每月 ¥1000.00）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 确认后我会写入目标、预算和任务。",
+      "answer": "目标「买电脑」需要 6 个月存 ¥6000.00（每月 ¥1000.00）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 你目前可动用资产 ¥34580.00，净资产 ¥562700.00；规划时建议至少保留 1 个月应急金。固定资产不会自动计入目标已存金额。 确认后我会写入目标、预算和任务。",
       "tools": [
         "intent_router",
         "parse_goal",
         "get_cashflow",
         "get_budget_status",
+        "get_asset_overview",
         "approval_required"
       ],
       "approvals": 1,
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 98,
+      "latency_ms": 104,
       "run_id": 68,
       "cost": 0.0,
       "parser": "",
@@ -2524,19 +2528,20 @@
       "passed": true,
       "reasons": [],
       "status": "awaiting_approval",
-      "answer": "目标「买车」需要 24 个月存 ¥50000.00（每月 ¥2083.33）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 确认后我会写入目标、预算和任务。",
+      "answer": "目标「买车」需要 24 个月存 ¥50000.00（每月 ¥2083.33）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 你目前可动用资产 ¥34580.00，净资产 ¥562700.00；规划时建议至少保留 1 个月应急金。固定资产不会自动计入目标已存金额。 确认后我会写入目标、预算和任务。",
       "tools": [
         "intent_router",
         "parse_goal",
         "get_cashflow",
         "get_budget_status",
+        "get_asset_overview",
         "approval_required"
       ],
       "approvals": 1,
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 95,
+      "latency_ms": 102,
       "run_id": 69,
       "cost": 0.0,
       "parser": "",
@@ -2567,19 +2572,20 @@
       "passed": true,
       "reasons": [],
       "status": "awaiting_approval",
-      "answer": "目标「旅行基金」需要 3 个月存 ¥3000.00（每月 ¥1000.00）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 确认后我会写入目标、预算和任务。",
+      "answer": "目标「旅行基金」需要 3 个月存 ¥3000.00（每月 ¥1000.00）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 你目前可动用资产 ¥34580.00，净资产 ¥562700.00；规划时建议至少保留 1 个月应急金。固定资产不会自动计入目标已存金额。 确认后我会写入目标、预算和任务。",
       "tools": [
         "intent_router",
         "parse_goal",
         "get_cashflow",
         "get_budget_status",
+        "get_asset_overview",
         "approval_required"
       ],
       "approvals": 1,
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 89,
+      "latency_ms": 109,
       "run_id": 70,
       "cost": 0.0,
       "parser": "",
@@ -2610,19 +2616,20 @@
       "passed": true,
       "reasons": [],
       "status": "awaiting_approval",
-      "answer": "目标「储蓄目标」需要 12 个月存 ¥3600.00（每月 ¥300.00）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥300.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 确认后我会写入目标、预算和任务。",
+      "answer": "目标「储蓄目标」需要 12 个月存 ¥3600.00（每月 ¥300.00）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥300.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 你目前可动用资产 ¥34580.00，净资产 ¥562700.00；规划时建议至少保留 1 个月应急金。固定资产不会自动计入目标已存金额。 确认后我会写入目标、预算和任务。",
       "tools": [
         "intent_router",
         "parse_goal",
         "get_cashflow",
         "get_budget_status",
+        "get_asset_overview",
         "approval_required"
       ],
       "approvals": 1,
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 101,
+      "latency_ms": 105,
       "run_id": 71,
       "cost": 0.0,
       "parser": "",
@@ -2659,7 +2666,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 50,
+      "latency_ms": 51,
       "run_id": 72,
       "cost": 0.0,
       "parser": "",
@@ -2696,7 +2703,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 50,
+      "latency_ms": 47,
       "run_id": 73,
       "cost": 0.0,
       "parser": "",
@@ -2733,7 +2740,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 52,
+      "latency_ms": 43,
       "run_id": 74,
       "cost": 0.0,
       "parser": "",
@@ -2770,7 +2777,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 49,
+      "latency_ms": 48,
       "run_id": 75,
       "cost": 0.0,
       "parser": "",
@@ -2807,7 +2814,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 49,
+      "latency_ms": 45,
       "run_id": 76,
       "cost": 0.0,
       "parser": "",
@@ -2844,7 +2851,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 46,
+      "latency_ms": 45,
       "run_id": 77,
       "cost": 0.0,
       "parser": "",
@@ -2881,7 +2888,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 48,
+      "latency_ms": 46,
       "run_id": 78,
       "cost": 0.0,
       "parser": "",
@@ -2918,7 +2925,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 46,
+      "latency_ms": 47,
       "run_id": 79,
       "cost": 0.0,
       "parser": "",
@@ -2953,14 +2960,14 @@
       "passed": true,
       "reasons": [],
       "status": "completed",
-      "answer": "2026-11 收入 ¥9000.00，支出 ¥5110.00，结余 ¥3890.00，共 10 笔。 主要支出：住房 ¥2500.00、餐饮 ¥1180.00、购物 ¥580.00。",
+      "answer": "你当前总资产 ¥964580.00，其中可动用 ¥34580.00、固定资产 ¥930000.00；总负债 ¥401880.00，净资产 ¥562700.00。 账户：支付宝余额 ¥1160.00、招商银行储蓄卡 ¥24600.00、稳健理财 ¥30000.00、自住房产 ¥800000.00。 负债：房贷余额 ¥400000.00、招行信用卡 ¥1280.00、课程分期 ¥600.00。",
       "tools": [
         "intent_router",
-        "summarize_spending"
+        "get_asset_overview"
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 46,
+      "latency_ms": 49,
       "run_id": 80,
       "cost": 0.0,
       "parser": "",
@@ -3002,7 +3009,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 48,
+      "latency_ms": 53,
       "run_id": 81,
       "cost": 0.0,
       "parser": "",
@@ -3044,7 +3051,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 45,
+      "latency_ms": 51,
       "run_id": 82,
       "cost": 0.0,
       "parser": "",
@@ -3078,22 +3085,18 @@
       "split": "test",
       "passed": true,
       "reasons": [],
-      "status": "awaiting_approval",
-      "answer": "识别为支出 ¥5000.00，分类「其他」。 记账后「其他」将超出预算 ¥4880.00，我准备了调配和任务方案。 需要你确认后才会写入。",
+      "status": "completed",
+      "answer": "资产转账和还款涉及真实余额变动，Agent 不会自动执行。请到「我的 → 个人资产管理」操作；我可以在你操作后帮你分析净资产变化。",
       "tools": [
         "intent_router",
-        "parse_bill",
-        "get_budget_status",
-        "approval_required"
+        "asset_write_boundary"
       ],
-      "approvals": 1,
-      "approval_statuses": [
-        "pending"
-      ],
-      "latency_ms": 3733,
+      "approvals": 0,
+      "approval_statuses": [],
+      "latency_ms": 46,
       "run_id": 83,
-      "cost": 0.002,
-      "parser": "ai",
+      "cost": 0.0,
+      "parser": "",
       "amount_consistent": null,
       "slots_ok": true,
       "slot_reasons": []
@@ -3132,7 +3135,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 56,
+      "latency_ms": 54,
       "run_id": 84,
       "cost": 0.0,
       "parser": "",
@@ -3174,7 +3177,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 49,
+      "latency_ms": 47,
       "run_id": 85,
       "cost": 0.0,
       "parser": "",
@@ -3259,7 +3262,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 39,
+      "latency_ms": 51,
       "run_id": 87,
       "cost": 0.0,
       "parser": "",
@@ -3305,7 +3308,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 1459,
+      "latency_ms": 1320,
       "run_id": 88,
       "cost": 0.0,
       "parser": "rule",
@@ -3347,7 +3350,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 42,
+      "latency_ms": 48,
       "run_id": 89,
       "cost": 0.0,
       "parser": "",
@@ -3393,7 +3396,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 6586,
+      "latency_ms": 4210,
       "run_id": 90,
       "cost": 0.002,
       "parser": "ai",
@@ -3435,7 +3438,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 51,
+      "latency_ms": 43,
       "run_id": 91,
       "cost": 0.0,
       "parser": "",
@@ -3469,7 +3472,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 48,
+      "latency_ms": 50,
       "run_id": 92,
       "cost": 0.0,
       "parser": "",
@@ -3503,7 +3506,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 43,
+      "latency_ms": 56,
       "run_id": 93,
       "cost": 0.0,
       "parser": "",
@@ -3537,7 +3540,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 44,
+      "latency_ms": 55,
       "run_id": 94,
       "cost": 0.0,
       "parser": "",
@@ -3572,7 +3575,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 58,
+      "latency_ms": 51,
       "run_id": 95,
       "cost": 0.0,
       "parser": "rule",
@@ -3610,7 +3613,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 70,
+      "latency_ms": 84,
       "run_id": 96,
       "cost": 0.0,
       "parser": "",
@@ -3644,7 +3647,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 50,
+      "latency_ms": 46,
       "run_id": 97,
       "cost": 0.0,
       "parser": "",
@@ -3679,7 +3682,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 55,
+      "latency_ms": 48,
       "run_id": 98,
       "cost": 0.0,
       "parser": "",
@@ -3713,7 +3716,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 47,
+      "latency_ms": 41,
       "run_id": 99,
       "cost": 0.0,
       "parser": "",
@@ -3752,7 +3755,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 6208,
+      "latency_ms": 5815,
       "run_id": 100,
       "cost": 0.002,
       "parser": "ai",
@@ -3781,19 +3784,20 @@
       "passed": true,
       "reasons": [],
       "status": "awaiting_approval",
-      "answer": "目标「旅行基金」需要 3 个月存 ¥3000.00（每月 ¥1000.00）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 确认后我会写入目标、预算和任务。",
+      "answer": "目标「旅行基金」需要 3 个月存 ¥3000.00（每月 ¥1000.00）；你近 3 个月平均结余 ¥3886.67，可行。 先压缩约 ¥540.00 的可自由支配预算，剩余靠每月结余补齐，并创建每周复盘任务。 你目前可动用资产 ¥34580.00，净资产 ¥562700.00；规划时建议至少保留 1 个月应急金。固定资产不会自动计入目标已存金额。 确认后我会写入目标、预算和任务。",
       "tools": [
         "intent_router",
         "parse_goal",
         "get_cashflow",
         "get_budget_status",
+        "get_asset_overview",
         "approval_required"
       ],
       "approvals": 1,
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 87,
+      "latency_ms": 91,
       "run_id": 101,
       "cost": 0.0,
       "parser": "",
@@ -3831,7 +3835,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 70,
+      "latency_ms": 67,
       "run_id": 102,
       "cost": 0.0,
       "parser": "",
@@ -3870,7 +3874,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 5868,
+      "latency_ms": 2472,
       "run_id": 103,
       "cost": 0.002,
       "parser": "ai",
@@ -3905,7 +3909,7 @@
       ],
       "approvals": 0,
       "approval_statuses": [],
-      "latency_ms": 41,
+      "latency_ms": 46,
       "run_id": 104,
       "cost": 0.0,
       "parser": "",
@@ -3943,7 +3947,7 @@
       "approval_statuses": [
         "pending"
       ],
-      "latency_ms": 192,
+      "latency_ms": 69,
       "run_id": 105,
       "cost": 0.0,
       "parser": "",

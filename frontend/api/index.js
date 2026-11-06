@@ -81,6 +81,8 @@ export const apiAgentRun = (message, mode = 'auto', sessionId = null, parentRunI
 export const apiAgentRuns = (limit = 8) => http.get('/api/agent/runs', { limit })
 export const apiAgentSession = (sessionId) => http.get(`/api/agent/sessions/${sessionId}`)
 export const apiAgentSessions = (limit = 10) => http.get('/api/agent/sessions', { limit })
+export const apiDeleteAgentSession = (sessionId) =>
+  http.delete(`/api/agent/sessions/${encodeURIComponent(sessionId)}`)
 export const apiAgentRunDetail = (runId) => http.get(`/api/agent/runs/${runId}`)
 export const apiAgentApproval = (approvalId, decision, edits = {}) =>
   http.post(`/api/agent/approvals/${approvalId}`, { decision, edits })

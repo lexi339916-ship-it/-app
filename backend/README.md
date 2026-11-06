@@ -51,6 +51,7 @@ app/
 - **认证与隔离**：JWT Bearer；所有业务接口按 `user_id` 过滤，跨用户 404。
 - **Agent 写操作**：`propose → approve → execute → verify → audit → undo`；
   审批幂等，执行后回查数据库，支持撤销。
+- **会话**：`agent_runs.session_id/parent_run_id/turn_index` 保存多轮；历史会话支持标题/预览、继续与软删除（`agent_session_archives`），审计轨迹不物理删除。
 - **数字口径**：金额用 Decimal；预算/目标/订阅/健康/模拟全部由 SQL/规则计算，模型只负责解析和表达。
 - **统一通知**：保留 `budget_alerts` 与 `agent_notifications` 两张源表，
   新增 `/api/notifications/*` 聚合读模型；旧接口不变。

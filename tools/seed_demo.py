@@ -30,6 +30,7 @@ from app.database import Base, SessionLocal, engine  # noqa: E402
 from app.main import _ensure_schema_patches, seed_default_categories  # noqa: E402
 from app.models import (  # noqa: E402
     AICallLog, AgentApproval, AgentMemory, AgentNotification, AgentRun, AgentStep,
+    AgentSessionArchive,
     AssetAccount, AssetLiability, AssetTransaction,
     Bill, BillCategory, Budget, BudgetAlert, BudgetPlan, CategoryBudget, Challenge,
     GoalDeposit, Note, SavingsGoal, Subscription, SubscriptionBilling, User,
@@ -69,6 +70,7 @@ def reset_demo(db, user: User) -> None:
     db.query(AgentRun).filter(AgentRun.user_id == user.id).delete(synchronize_session=False)
     db.query(AgentMemory).filter(AgentMemory.user_id == user.id).delete(synchronize_session=False)
     db.query(AgentNotification).filter(AgentNotification.user_id == user.id).delete(synchronize_session=False)
+    db.query(AgentSessionArchive).filter(AgentSessionArchive.user_id == user.id).delete(synchronize_session=False)
     db.query(AssetTransaction).filter(AssetTransaction.user_id == user.id).delete(synchronize_session=False)
     db.query(AssetAccount).filter(AssetAccount.user_id == user.id).delete(synchronize_session=False)
     db.query(AssetLiability).filter(AssetLiability.user_id == user.id).delete(synchronize_session=False)

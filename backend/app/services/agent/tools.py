@@ -505,17 +505,8 @@ def parse_goal(text: str) -> dict:
     elif "车" in text:
         name = "买车"
     else:
-        name = text
-        for word in ["帮我", "我想要", "我想", "计划", "目标", "存钱", "存", "攒",
-                     "元", "块", "一下", "一点", "一起", "每个月", "每月",
-                     "半年", "个月", "一年", "年"]:
-            name = name.replace(word, "")
-        name = re.sub(
-            r"(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)\s*(万|千|元|块|个|月|年)?",
-            "", name)
-        name = name.replace("个月", "").strip(" ，,。")
-        if len(name) < 2:
-            name = "储蓄目标"
+        # 没有明确消费对象时不要从“在半年内攒下”里截出“在内下”这类碎片
+        name = "储蓄目标"
 
     return {
         "amount": amount,

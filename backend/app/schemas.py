@@ -558,9 +558,17 @@ class AgentRunIn(BaseModel):
 class AgentSessionSummaryOut(BaseModel):
     session_id: str
     turn_count: int
+    title: str = ""
+    preview: str = ""
     last_goal: str = ""
     last_status: str = ""
     last_at: datetime | None = None
+
+
+class AgentSessionDeleteOut(BaseModel):
+    ok: bool = True
+    session_id: str = ""
+    archived: bool = True
 
 
 class AgentStepOut(BaseModel):

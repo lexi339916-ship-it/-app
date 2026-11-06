@@ -387,6 +387,21 @@ class AgentNotification(Base):
     )
 
 
+class AgentSessionArchive(Base):
+    """用户从历史中删除的会话：只做软删除，agent_runs/steps/approvals 仍保留审计。"""
+    __tablename__ = "agent_session_archives"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    session_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    archived_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "session_id", name="uq_agent_session_archive"),
+        Index("idx_agent_session_archive_user", "user_id"),
+    )
+
+
 # ========== 个人资产管理（新增独立账本，不改变现有账单统计口径） ==========
 
 

@@ -7,11 +7,11 @@ from sqlalchemy.orm import Session
 
 from app import config, version
 from app.deps import get_current_user, get_db
-from app.models import AgentRun, User
+from app.models import AgentRun, AgentSessionArchive, User
 from app.schemas import (
     AgentApprovalIn, AgentHealthOut, AgentMemoryOut, AgentNotificationActionIn,
     AgentNotificationOut, AgentRunIn, AgentRunOut, AgentScanOut,
-    AgentSessionSummaryOut,
+    AgentSessionDeleteOut, AgentSessionSummaryOut,
 )
 from app.services.agent import orchestrator, trace
 
@@ -40,12 +40,15 @@ async def run_agent(data: AgentRunIn, user: User = Depends(get_current_user),
 @router.get("/sessions", response_model=list[AgentSessionSummaryOut])
 def list_sessions(limit: int = 10, user: User = Depends(get_current_user),
                   db: Session = Depends(get_db)):
-    """最近的多轮会话摘要（按最后活动时间倒序）。"""
+    """最近的多轮会话摘要（按最后活动时间倒序；已删除的会话不返回）。"""
     limit = max(1, min(limit, 30))
+    archived = select(AgentSessionArchive.session_id).where(
+        AgentSessionArchive.user_id == user.id)
     rows = db.execute(
         select(AgentRun.session_id, func.count(AgentRun.id),
                func.max(AgentRun.created_at))
-        .where(AgentRun.user_id == user.id, AgentRun.session_id != "")
+        .where(AgentRun.user_id == user.id, AgentRun.session_id != "",
+               AgentRun.session_id.not_in(archived))
         .group_by(AgentRun.session_id)
         .order_by(func.max(AgentRun.created_at).desc())
         .limit(limit)).all()
@@ -54,8 +57,13 @@ def list_sessions(limit: int = 10, user: User = Depends(get_current_user),
         last = db.scalar(select(AgentRun).where(
             AgentRun.user_id == user.id, AgentRun.session_id == session_id)
             .order_by(AgentRun.turn_index.desc(), AgentRun.id.desc()).limit(1))
+        first = db.scalar(select(AgentRun).where(
+            AgentRun.user_id == user.id, AgentRun.session_id == session_id)
+            .order_by(AgentRun.turn_index, AgentRun.id).limit(1))
         result.append(AgentSessionSummaryOut(
             session_id=session_id, turn_count=int(count),
+            title=(first.goal if first else ""),
+            preview=((last.answer or "")[:80] if last else ""),
             last_goal=(last.goal if last else ""),
             last_status=(last.status if last else ""),
             last_at=last_at))
@@ -66,13 +74,38 @@ def list_sessions(limit: int = 10, user: User = Depends(get_current_user),
 def get_session(session_id: str, user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
     """读取一次多轮会话的全部轮次，按 turn_index 正序。"""
+    session_id = session_id[:64]
+    archived = db.scalar(select(AgentSessionArchive.id).where(
+        AgentSessionArchive.user_id == user.id,
+        AgentSessionArchive.session_id == session_id).limit(1))
+    if archived is not None:
+        raise HTTPException(404, "会话不存在或已删除")
     rows = db.scalars(select(AgentRun).where(
         AgentRun.user_id == user.id,
-        AgentRun.session_id == session_id[:64],
+        AgentRun.session_id == session_id,
     ).order_by(AgentRun.turn_index, AgentRun.id)).all()
     if not rows:
         raise HTTPException(404, "会话不存在")
     return [trace.serialize_run(db, row) for row in rows]
+
+
+@router.delete("/sessions/{session_id}", response_model=AgentSessionDeleteOut)
+def delete_session(session_id: str, user: User = Depends(get_current_user),
+                   db: Session = Depends(get_db)):
+    """从历史中删除会话：软删除，保留 agent_runs/steps/approvals 审计。"""
+    session_id = session_id[:64]
+    exists = db.scalar(select(AgentRun.id).where(
+        AgentRun.user_id == user.id,
+        AgentRun.session_id == session_id).limit(1))
+    if exists is None:
+        raise HTTPException(404, "会话不存在")
+    archived = db.scalar(select(AgentSessionArchive.id).where(
+        AgentSessionArchive.user_id == user.id,
+        AgentSessionArchive.session_id == session_id).limit(1))
+    if archived is None:
+        db.add(AgentSessionArchive(user_id=user.id, session_id=session_id))
+        db.commit()
+    return AgentSessionDeleteOut(ok=True, session_id=session_id, archived=True)
 
 
 @router.get("/runs", response_model=list[AgentRunOut])

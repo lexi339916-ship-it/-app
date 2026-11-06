@@ -261,6 +261,17 @@ CREATE TABLE IF NOT EXISTS agent_notifications (
   CONSTRAINT fk_agent_notif_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
+-- Agent 会话软删除：保留 agent_runs/steps/approvals 审计，只从历史列表隐藏
+CREATE TABLE IF NOT EXISTS agent_session_archives (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  session_id VARCHAR(64) NOT NULL,
+  archived_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_agent_session_archive (user_id, session_id),
+  INDEX idx_agent_session_archive_user (user_id),
+  CONSTRAINT fk_agent_session_archive_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
 -- ========== AI 消费预警 & 预算模块（新增，不影响已有表） ==========
 
 -- 分类月度预算表：每用户每分类每月一条（参考支付宝按分类设预算）

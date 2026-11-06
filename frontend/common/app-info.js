@@ -6,6 +6,7 @@ export const APP_VERSION = '2.0.0'
 export const APP_FEATURES = [
   '自然语言 / 截图 / CSV 记账',
   'Agent 多步规划与审批',
+  '对话式 Agent 工作台与历史会话',
   '执行校验、审计与撤销',
   '消费健康诊断',
   '消费决策模拟',

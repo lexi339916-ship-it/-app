@@ -31,17 +31,21 @@ def _month_days(year: int, mon: int) -> list[date]:
 
 
 @router.get("/monthly", response_model=MonthlyStatsOut)
-def monthly(month: str = "", user: User = Depends(get_current_user),
+def monthly(month: str = "", category_id: int | None = None,
+            user: User = Depends(get_current_user),
             db: Session = Depends(get_db)):
     today = date.today()
     month = month or today.strftime("%Y-%m")
     year, mon = _parse_month(month)
 
-    rows = db.scalars(select(Bill).where(
+    conditions = [
         Bill.user_id == user.id,
         extract("year", Bill.bill_date) == year,
         extract("month", Bill.bill_date) == mon,
-    )).all()
+    ]
+    if category_id is not None:
+        conditions.append(Bill.category_id == category_id)
+    rows = db.scalars(select(Bill).where(*conditions)).all()
 
     income = sum((r.amount for r in rows if r.type == "income"), Decimal("0"))
     expense = sum((r.amount for r in rows if r.type == "expense"), Decimal("0"))

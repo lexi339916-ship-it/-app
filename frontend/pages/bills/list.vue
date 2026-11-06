@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { apiBills, apiMonthlyStats } from '../../api/index.js'
+import { apiBills, apiCategories, apiMonthlyStats } from '../../api/index.js'
 import { categoryMeta, channelMeta } from '../../common/category-icons.js'
 import { syncSubscriptions } from '../../common/subscription-notify.js'
+import userState from '../../store/user.js'
 
 // 本地日期（避免 toISOString 的 UTC 偏移）
 const todayStr = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
@@ -14,6 +15,15 @@ const month = ref('')
 const typeFilter = ref('')          // '' 全部 / expense / income
 const subCount = ref(0)             // 进行中的订阅数（订阅同步接口返回）
 const pageSize = 20
+
+// 分类筛选
+const categories = ref([])
+const categoryId = ref(null)
+const catOpen = ref(false)
+const catLoading = ref(false)
+const catError = ref('')
+const recentIds = ref([])
+let categoriesUserId = null
 
 // 列表视图状态
 const items = ref([])
@@ -108,6 +118,86 @@ function defaultSelectedDate() {
   return firstWithData ? firstWithData.date : `${month.value}-01`
 }
 
+// ---------- 分类筛选 ----------
+const activeCategory = computed(() =>
+  categories.value.find(c => c.id === categoryId.value) || null)
+const activeCategoryName = computed(() => activeCategory.value?.name || '已选分类')
+const expenseCategories = computed(() => categories.value.filter(c => c.type === 'expense'))
+const incomeCategories = computed(() => categories.value.filter(c => c.type === 'income'))
+const showExpenseGroup = computed(() => typeFilter.value !== 'income')
+const showIncomeGroup = computed(() => typeFilter.value !== 'expense')
+const recentCategories = computed(() => {
+  const map = new Map(categories.value.map(c => [c.id, c]))
+  return recentIds.value
+    .map(id => map.get(id))
+    .filter(c => c && (!typeFilter.value || c.type === typeFilter.value))
+    .slice(0, 4)
+})
+
+function recentStorageKey() {
+  return `bill_cat_recent_${userState.user?.id || 'guest'}`
+}
+
+function loadRecentCategories() {
+  const saved = uni.getStorageSync(recentStorageKey())
+  recentIds.value = Array.isArray(saved)
+    ? saved.map(Number).filter(id => Number.isInteger(id)).slice(0, 6)
+    : []
+}
+
+function rememberCategory(id) {
+  recentIds.value = [id, ...recentIds.value.filter(x => x !== id)].slice(0, 6)
+  uni.setStorageSync(recentStorageKey(), recentIds.value)
+}
+
+async function fetchCategories(force = false) {
+  const uid = userState.user?.id || 0
+  if (!force && categories.value.length && categoriesUserId === uid) return
+  catLoading.value = true
+  catError.value = ''
+  try {
+    const res = await apiCategories()
+    categories.value = res.items || []
+    categoriesUserId = uid
+  } catch (e) {
+    catError.value = '分类加载失败，点击重试'
+  } finally {
+    catLoading.value = false
+  }
+}
+
+function openCat() {
+  catOpen.value = true
+  if (!categories.value.length && !catLoading.value) fetchCategories(true)
+}
+
+function closeCat() { catOpen.value = false }
+
+function categoryParam() {
+  return categoryId.value != null ? { category_id: categoryId.value } : {}
+}
+
+function reload() {
+  if (viewMode.value === 'list') load(true)
+  else loadDayBills()
+}
+
+function selectCategory(cat) {
+  categoryId.value = cat ? cat.id : null
+  if (cat) {
+    if (typeFilter.value && cat.type !== typeFilter.value) typeFilter.value = cat.type
+    rememberCategory(cat.id)
+  }
+  catOpen.value = false
+  reload()
+}
+
+function clearCategory() {
+  if (categoryId.value == null) return
+  categoryId.value = null
+  reload()
+}
+
 // ---------- 数据加载 ----------
 async function loadDayBills() {
   if (!selectedDate.value) return
@@ -117,6 +207,7 @@ async function loadDayBills() {
       start_date: selectedDate.value,
       end_date: selectedDate.value,
       type: typeFilter.value,
+      ...categoryParam(),
       page: 1,
       page_size: 50,
     })
@@ -128,12 +219,13 @@ async function load(reset = true) {
   if (reset) page.value = 1
   loading.value = true
   try {
-    const stats = await apiMonthlyStats(month.value)
+    const stats = await apiMonthlyStats(month.value, categoryId.value)
     monthDays.value = stats.days
     if (viewMode.value === 'list') {
       const res = await apiBills({
         month: month.value,
         type: typeFilter.value,
+        ...categoryParam(),
         page: page.value,
         page_size: pageSize,
       })
@@ -155,8 +247,11 @@ function toggleView() {
 
 function setType(t) {
   typeFilter.value = t
-  if (viewMode.value === 'list') load(true)
-  else loadDayBills()
+  // 类型切换后，若已选分类属于另一类型则自动清除，避免空结果
+  if (t && activeCategory.value && activeCategory.value.type !== t) {
+    categoryId.value = null
+  }
+  reload()
 }
 
 function prevMonth() { month.value = shiftMonth(month.value, -1); load(true) }
@@ -190,6 +285,8 @@ function goSubscriptions() {
 
 onShow(async () => {
   if (!month.value) month.value = currentMonth()
+  loadRecentCategories()
+  fetchCategories()
   // 先同步订阅（到达扣费日补生成账单），再统一拉一次列表，避免两次请求互相覆盖
   const res = await syncSubscriptions()
   if (res) subCount.value = res.active_count || 0
@@ -215,6 +312,17 @@ onShow(async () => {
         <text :class="['tab', typeFilter === '' && 'tab-active']" @click="setType('')">全部</text>
         <text :class="['tab', typeFilter === 'expense' && 'tab-active']" @click="setType('expense')">支出</text>
         <text :class="['tab', typeFilter === 'income' && 'tab-active']" @click="setType('income')">收入</text>
+      </view>
+      <view class="filter-sub">
+        <view class="filter-left">
+          <view :class="['cat-filter', categoryId != null && 'cat-filter-on']" @click="openCat">
+            <text class="cat-filter-ico">🏷️</text>
+            <text class="cat-filter-name">{{ categoryId != null ? activeCategoryName : '全部分类' }}</text>
+            <text v-if="categoryId == null" class="cat-filter-caret">▾</text>
+          </view>
+          <view v-if="categoryId != null" class="cat-filter-clear" @click="clearCategory">×</view>
+        </view>
+        <text class="filter-count" v-if="viewMode === 'list'">{{ total }} 笔</text>
       </view>
     </view>
 
@@ -272,6 +380,9 @@ onShow(async () => {
     <view v-else-if="viewMode === 'list'" class="empty">
       <image class="empty-doodle" src="/static/doodles/cloud.png" mode="widthFix" />
       <text>该条件下暂无账单</text>
+      <button v-if="categoryId != null" class="btn btn-ghost empty-reset" @click="clearCategory">
+        清除分类筛选
+      </button>
     </view>
 
     <!-- ===== 日历视图 ===== -->
@@ -348,6 +459,80 @@ onShow(async () => {
       </view>
     </block>
 
+    <!-- ===== 分类选择抽屉 ===== -->
+    <view v-if="catOpen" class="sheet-mask" @click="closeCat">
+      <view class="cat-sheet" @click.stop>
+        <view class="sheet-handle" />
+        <view class="sheet-head">
+          <text class="sheet-title">选择分类</text>
+          <text v-if="categoryId != null" class="sheet-reset" @click="selectCategory(null)">重置</text>
+        </view>
+
+        <scroll-view scroll-y class="cat-scroll">
+          <view class="cat-group">
+            <view :class="['cat-all', categoryId == null && 'on']" @click="selectCategory(null)">
+              <view class="cat-all-ico">🗂️</view>
+              <view class="cat-all-mid">
+                <text class="cat-all-title">全部分类</text>
+                <text class="cat-all-sub">不限制分类，查看所有账单</text>
+              </view>
+              <text v-if="categoryId == null" class="cat-check">✓</text>
+            </view>
+          </view>
+
+          <view v-if="catLoading && !categories.length" class="cat-tip">正在加载分类…</view>
+          <view v-else-if="catError && !categories.length" class="cat-tip cat-tip-error"
+            @click="fetchCategories(true)">{{ catError }}</view>
+
+          <view v-if="recentCategories.length" class="cat-group">
+            <text class="cat-group-title">最近使用</text>
+            <view class="cat-grid">
+              <view v-for="c in recentCategories" :key="'recent-' + c.id"
+                :class="['cat-item', categoryId === c.id && 'on']" @click="selectCategory(c)">
+                <view class="cat-ico" :style="{ background: categoryMeta(c.name).color + '1f' }">
+                  <image class="cat-img-sm" :src="categoryMeta(c.name).img" mode="widthFix" />
+                </view>
+                <text class="cat-item-name">{{ c.name }}</text>
+                <text v-if="categoryId === c.id" class="cat-item-check">✓</text>
+              </view>
+            </view>
+          </view>
+
+          <view v-if="showExpenseGroup && expenseCategories.length" class="cat-group">
+            <text class="cat-group-title">支出分类</text>
+            <view class="cat-grid">
+              <view v-for="c in expenseCategories" :key="'expense-' + c.id"
+                :class="['cat-item', categoryId === c.id && 'on']" @click="selectCategory(c)">
+                <view class="cat-ico" :style="{ background: categoryMeta(c.name).color + '1f' }">
+                  <image class="cat-img-sm" :src="categoryMeta(c.name).img" mode="widthFix" />
+                </view>
+                <text class="cat-item-name">{{ c.name }}</text>
+                <text v-if="categoryId === c.id" class="cat-item-check">✓</text>
+              </view>
+            </view>
+          </view>
+
+          <view v-if="showIncomeGroup && incomeCategories.length" class="cat-group">
+            <text class="cat-group-title">收入分类</text>
+            <view class="cat-grid">
+              <view v-for="c in incomeCategories" :key="'income-' + c.id"
+                :class="['cat-item', categoryId === c.id && 'on']" @click="selectCategory(c)">
+                <view class="cat-ico" :style="{ background: categoryMeta(c.name).color + '1f' }">
+                  <image class="cat-img-sm" :src="categoryMeta(c.name).img" mode="widthFix" />
+                </view>
+                <text class="cat-item-name">{{ c.name }}</text>
+                <text v-if="categoryId === c.id" class="cat-item-check">✓</text>
+              </view>
+            </view>
+          </view>
+        </scroll-view>
+
+        <view class="sheet-foot">
+          <button class="btn btn-primary sheet-done" @click="closeCat">完成</button>
+        </view>
+      </view>
+    </view>
+
     <!-- 悬浮新增按钮 -->
     <view class="fab" @click="viewMode === 'list' ? goEdit() : goEdit(null, selectedDate)">＋</view>
   </view>
@@ -365,6 +550,22 @@ onShow(async () => {
 .type-tabs { display: flex; gap: 20rpx; justify-content: center; margin: 18rpx 0 14rpx; }
 .tab { font-size: 28rpx; color: #8A90A8; padding: 8rpx 30rpx; border-radius: 30rpx; background: #F6F4FB; }
 .tab-active { color: #fff; background: #6C7BF5; font-weight: 600; }
+
+/* 分类筛选入口 */
+.filter-sub { display: flex; align-items: center; justify-content: space-between;
+  gap: 16rpx; padding: 0 2rpx 14rpx; }
+.filter-left { display: flex; align-items: center; gap: 10rpx; min-width: 0; max-width: 76%; }
+.cat-filter { display: inline-flex; align-items: center; gap: 8rpx; max-width: 100%;
+  padding: 10rpx 22rpx; border-radius: 999rpx; background: #FFFDF8;
+  border: 1rpx dashed #D9D6E8; font-size: 26rpx; color: #5E6379; }
+.cat-filter-on { background: #EFF1FF; border: 1rpx solid #B9C0FF; color: #5A66D8; font-weight: 600; }
+.cat-filter-ico { font-size: 24rpx; }
+.cat-filter-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-filter-caret { font-size: 22rpx; color: #9AA0B8; }
+.cat-filter-clear { flex-shrink: 0; width: 42rpx; height: 42rpx; border-radius: 21rpx;
+  background: #EFF1FF; color: #6C7BF5; display: flex; align-items: center;
+  justify-content: center; font-size: 30rpx; line-height: 1; }
+.filter-count { font-size: 23rpx; color: #A6AAC2; flex-shrink: 0; }
 
 /* 订阅管理入口 */
 .sub-entry { display: flex; align-items: center; gap: 16rpx; margin: 14rpx 24rpx 0;
@@ -404,6 +605,50 @@ onShow(async () => {
 .amount-in { color: #1FA97F; } .amount-out { color: #E45858; }
 .load-more { text-align: center; color: #8A90A8; font-size: 26rpx; padding: 24rpx; }
 .empty-doodle { width: 160rpx; display: block; margin: 0 auto 14rpx; opacity: .9; }
+.empty-reset { width: 300rpx; margin: 24rpx auto 0; height: 70rpx; font-size: 26rpx; }
+
+/* ===== 分类选择抽屉 ===== */
+.sheet-mask { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 999;
+  background: rgba(35, 38, 54, .42); display: flex; align-items: flex-end; }
+.cat-sheet { width: 100%; background: #FFFDF8; border-radius: 34rpx 34rpx 0 0;
+  padding: 14rpx 0 24rpx; display: flex; flex-direction: column; max-height: 82vh;
+  animation: sheetFade .18s ease-out; }
+@keyframes sheetFade { from { opacity: .82; } to { opacity: 1; } }
+.sheet-handle { width: 64rpx; height: 8rpx; border-radius: 4rpx; background: #E2E0EC;
+  margin: 4rpx auto 12rpx; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between;
+  padding: 8rpx 32rpx 16rpx; }
+.sheet-title { font-size: 32rpx; font-weight: 700; color: #3A3F58; }
+.sheet-reset { font-size: 26rpx; color: #8A90A8; padding: 6rpx 14rpx; }
+.cat-scroll { height: 54vh; padding: 0 28rpx; box-sizing: border-box; }
+.cat-group { margin-bottom: 22rpx; }
+.cat-group-title { display: block; font-size: 24rpx; color: #9A9FB6;
+  letter-spacing: 1rpx; margin: 4rpx 4rpx 12rpx; }
+.cat-all { display: flex; align-items: center; gap: 16rpx; padding: 18rpx 20rpx;
+  border-radius: 20rpx; border: 2rpx solid transparent; background: #F7F5FC; }
+.cat-all.on { border-color: #8C96F8; background: #F1F2FF; }
+.cat-all-ico { width: 64rpx; height: 64rpx; border-radius: 20rpx; background: #FFFDF8;
+  display: flex; align-items: center; justify-content: center; font-size: 32rpx; }
+.cat-all-mid { flex: 1; min-width: 0; }
+.cat-all-title { display: block; font-size: 28rpx; font-weight: 600; color: #3A3F58; }
+.cat-all-sub { display: block; font-size: 22rpx; color: #A6AAC2; margin-top: 4rpx; }
+.cat-check { color: #6C7BF5; font-size: 30rpx; font-weight: 700; }
+.cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14rpx; }
+.cat-item { position: relative; display: flex; flex-direction: column; align-items: center;
+  gap: 8rpx; padding: 16rpx 6rpx 14rpx; border-radius: 20rpx;
+  border: 2rpx solid transparent; background: #F9F8FD; }
+.cat-item.on { border-color: #8C96F8; background: #F1F2FF; }
+.cat-item:active { opacity: .85; }
+.cat-ico { width: 70rpx; height: 70rpx; border-radius: 22rpx;
+  display: flex; align-items: center; justify-content: center; }
+.cat-img-sm { width: 48rpx; height: 48rpx; }
+.cat-item-name { font-size: 24rpx; color: #4A4F6B; font-weight: 600; }
+.cat-item-check { position: absolute; top: 6rpx; right: 8rpx; color: #6C7BF5;
+  font-size: 22rpx; font-weight: 700; }
+.cat-tip { text-align: center; font-size: 25rpx; color: #A6AAC2; padding: 30rpx 0; }
+.cat-tip-error { color: #E45858; }
+.sheet-foot { padding: 12rpx 28rpx 4rpx; border-top: 1rpx solid #F1EFF9; }
+.sheet-done { width: 100%; height: 84rpx; line-height: 84rpx; font-size: 29rpx; border-radius: 24rpx; }
 
 /* ===== 日历 ===== */
 .cal-card { padding: 24rpx 18rpx 18rpx; }

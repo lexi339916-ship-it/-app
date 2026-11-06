@@ -75,6 +75,7 @@ python tests/agent_eval/run_eval.py --split all
 python tests/health_report_test.py
 python tests/notifications_test.py
 python tests/avatar_test.py
+python tests/bills_filter_test.py
 python tests/csv_import_test.py
 ```
 

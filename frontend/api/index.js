@@ -56,7 +56,9 @@ export const apiDeleteSubscription = (id) => http.delete(`/api/subscriptions/${i
 export const apiSubscriptionSync = () => http.post('/api/subscriptions/sync', {})
 
 // ---- 统计 ----
-export const apiMonthlyStats = (month) => http.get('/api/statistics/monthly', { month })
+export const apiMonthlyStats = (month, categoryId) =>
+  http.get('/api/statistics/monthly',
+    categoryId != null ? { month, category_id: categoryId } : { month })
 export const apiCategoryStats = (month, type) => http.get('/api/statistics/categories', { month, type })
 export const apiChannelStats = (month, type) => http.get('/api/statistics/channels', { month, type })
 export const apiProfileStats = () => http.get('/api/statistics/profile')

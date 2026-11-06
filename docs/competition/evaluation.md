@@ -104,6 +104,16 @@
 - 预算一致性 14 项：分类预算投影、旧预算回退、已有分类预算 PUT 409、同步删除、账单 source 保留。
 - 版本 13 项：`/api/health`、Agent health、manifest、pages.json 统一为 2.0.0。
 
+### 2.6.1 账单分类筛选 17 项断言
+
+`tests/bills_filter_test.py` 全部通过，覆盖：
+
+- `/api/bills?category_id=` 单分类筛选、分类 + 收支类型组合、分页总数；
+- `/api/statistics/monthly?category_id=` 月度分类统计与总额一致；
+- 不同用户同一分类互不可见（账单与统计均隔离）；
+- 不存在的分类返回空列表；收入分类独立可筛；
+- 前端抽屉支持全部/最近使用/支出分类/收入分类，类型切换自动清除冲突分类，空结果一键清除。
+
 ### 2.7 流程与异常 94 项断言
 
 `run_flow_eval.py` 全部通过，覆盖：

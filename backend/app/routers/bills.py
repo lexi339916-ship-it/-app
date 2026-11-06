@@ -51,6 +51,7 @@ def list_bills(
     start_date: date | None = None,
     end_date: date | None = None,
     q: str = "",
+    category_id: int | None = None,
     page: int = 1,
     page_size: int = 20,
     user: User = Depends(get_current_user),
@@ -75,6 +76,8 @@ def list_bills(
         conditions.append(Bill.bill_date <= end_date)
     if q:
         conditions.append(Bill.remark.like(f"%{q}%"))
+    if category_id is not None:
+        conditions.append(Bill.category_id == category_id)
 
     total = db.scalar(select(func.count()).where(*conditions)) or 0
     rows = db.scalars(

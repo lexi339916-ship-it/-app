@@ -218,15 +218,110 @@ check("消费影响为负", dec(body["components"]["consumption"]) <= dec("-25.0
 check("关联支出覆盖", dec(body["linked_expense"]) >= dec("25.00"), r.text)
 check("转账净影响为 0", dec(body["components"]["transfer"]) == dec("0.00"), r.text)
 
+
+# ---------- 信用卡消费计入负债 ----------
+def liability_outstanding(liability_id: int) -> Decimal:
+    rows = client.get("/api/assets/overview", headers=H_A).json()["liabilities"]
+    row = next(item for item in rows if item["id"] == liability_id)
+    return dec(row["outstanding"])
+
+
+r = client.post("/api/assets/liabilities", headers=H_A, json={
+    "name": "测试信用卡", "type": "credit_card", "outstanding": "1000.00"})
+check("新增信用卡负债", r.status_code == 200, r.text)
+card_id = r.json()["id"]
+
+r = client.post("/api/bills", headers=H_A, json={
+    "type": "expense", "amount": "200.00", "category": "购物",
+    "bill_date": date.today().isoformat(), "remark": "信用卡买鞋",
+    "liability_id": card_id})
+check("信用卡账单创建成功", r.status_code == 200
+      and r.json()["liability_id"] == card_id, r.text)
+card_bill_id = r.json()["id"]
+check("信用卡消费增加欠款", liability_outstanding(card_id) == dec("1200.00"),
+      str(liability_outstanding(card_id)))
+
+r = client.post("/api/bills", headers=H_A, json={
+    "type": "expense", "amount": "10.00", "category": "购物",
+    "bill_date": date.today().isoformat(),
+    "account_id": cash_id, "liability_id": card_id})
+check("账户与负债不能同时关联", r.status_code == 400, r.text)
+r = client.post("/api/bills", headers=H_A, json={
+    "type": "income", "amount": "10.00", "category": "退款",
+    "bill_date": date.today().isoformat(), "liability_id": card_id})
+check("收入不能计入信用卡负债", r.status_code == 400, r.text)
+
+r = client.put(f"/api/bills/{card_bill_id}", headers=H_A, json={
+    "type": "expense", "amount": "300.00", "category": "购物",
+    "bill_date": date.today().isoformat(), "remark": "信用卡买鞋改金额",
+    "liability_id": card_id})
+check("编辑信用卡账单成功", r.status_code == 200, r.text)
+check("编辑后欠款按差额调整", liability_outstanding(card_id) == dec("1300.00"),
+      str(liability_outstanding(card_id)))
+
+r = client.delete(f"/api/bills/{card_bill_id}", headers=H_A)
+check("删除信用卡账单成功", r.status_code == 200, r.text)
+check("删除后欠款恢复", liability_outstanding(card_id) == dec("1000.00"),
+      str(liability_outstanding(card_id)))
+
+# 已部分还款后删除账单：仍按原金额冲正
+r = client.post("/api/bills", headers=H_A, json={
+    "type": "expense", "amount": "300.00", "category": "购物",
+    "bill_date": date.today().isoformat(), "remark": "信用卡第二笔",
+    "liability_id": card_id})
+second_bill = r.json()["id"]
+client.post(f"/api/assets/liabilities/{card_id}/repay", headers=H_A, json={
+    "amount": "100.00", "account_id": wechat_id})
+check("信用卡部分还款", liability_outstanding(card_id) == dec("1200.00"),
+      str(liability_outstanding(card_id)))
+r = client.delete(f"/api/bills/{second_bill}", headers=H_A)
+check("部分还款后删除账单仍可冲正", r.status_code == 200, r.text)
+check("冲正后欠款正确", liability_outstanding(card_id) == dec("900.00"),
+      str(liability_outstanding(card_id)))
+
+# ---------- 固定资产类型 ----------
+r = client.post("/api/assets/accounts", headers=H_A, json={
+    "name": "自住房产", "type": "property", "balance": "800000.00"})
+check("新增房产资产", r.status_code == 200, r.text)
+r = client.post("/api/assets/accounts", headers=H_A, json={
+    "name": "家用车", "type": "vehicle", "balance": "80000.00"})
+check("新增车辆资产", r.status_code == 200, r.text)
+r = client.post("/api/assets/accounts", headers=H_A, json={
+    "name": "稳健理财", "type": "investment", "balance": "30000.00"})
+check("新增理财产品", r.status_code == 200, r.text)
+r = client.post("/api/assets/accounts", headers=H_A, json={
+    "name": "贵重物品", "type": "valuables", "balance": "20000.00"})
+check("新增贵重物品", r.status_code == 200, r.text)
+body = client.get("/api/assets/overview", headers=H_A).json()
+check("固定资产汇总正确", dec(body["fixed_assets"]) == dec("930000.00"),
+      body["fixed_assets"])
+check("可动用加固定等于总资产",
+      dec(body["liquid_assets"]) + dec(body["fixed_assets"]) == dec(body["total_assets"]),
+      f"{body['liquid_assets']} + {body['fixed_assets']} != {body['total_assets']}")
+
 # ---------- 删除/归档 ----------
 r = client.delete(f"/api/assets/accounts/{cash_id}", headers=H_A)
 check("有流水账户归档", r.status_code == 200 and r.json()["archived"] is True, r.text)
 r = client.get("/api/assets/overview", headers=H_A)
 check("归档账户不出现在总览", all(a["id"] != cash_id for a in r.json()["accounts"]), r.text)
+check("归档账户出现在已停用列表",
+      any(a["id"] == cash_id for a in r.json()["archived_accounts"]), r.text)
 r = client.get("/api/assets/transactions", headers=H_A)
 check("归档后流水仍保留", any(t["account_id"] == cash_id for t in r.json()["items"]), r.text)
 
+r = client.post(f"/api/assets/accounts/{cash_id}/restore", headers=H_A)
+check("恢复归档账户", r.status_code == 200 and r.json()["is_active"] is True, r.text)
+r = client.get("/api/assets/overview", headers=H_A)
+check("恢复后账户回到总览", any(a["id"] == cash_id for a in r.json()["accounts"]), r.text)
+check("恢复后不再显示已停用",
+      all(a["id"] != cash_id for a in r.json()["archived_accounts"]), r.text)
+
 r = client.delete(f"/api/assets/liabilities/{liability_id}", headers=H_A)
 check("有还款负债归档", r.status_code == 200 and r.json()["archived"] is True, r.text)
+r = client.get("/api/assets/overview", headers=H_A)
+check("归档负债出现在已停用列表",
+      any(l["id"] == liability_id for l in r.json()["archived_liabilities"]), r.text)
+r = client.post(f"/api/assets/liabilities/{liability_id}/restore", headers=H_A)
+check("恢复归档负债", r.status_code == 200 and r.json()["is_active"] is True, r.text)
 
 print(f"\n全部通过：{PASSED} 项断言")

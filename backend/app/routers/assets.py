@@ -49,6 +49,12 @@ def delete_account(account_id: int, user: User = Depends(get_current_user),
     return asset_service.archive_account(db, user, account_id)
 
 
+@router.post("/accounts/{account_id}/restore", response_model=AssetAccountOut)
+def restore_account(account_id: int, user: User = Depends(get_current_user),
+                    db: Session = Depends(get_db)):
+    return asset_service.restore_account(db, user, account_id)
+
+
 @router.post("/accounts/{account_id}/adjust", response_model=AssetAccountOut)
 def adjust_account(account_id: int, data: AssetAccountChangeIn,
                    user: User = Depends(get_current_user),
@@ -96,6 +102,12 @@ def update_liability(liability_id: int, data: AssetLiabilityUpdateIn,
 def delete_liability(liability_id: int, user: User = Depends(get_current_user),
                      db: Session = Depends(get_db)):
     return asset_service.archive_liability(db, user, liability_id)
+
+
+@router.post("/liabilities/{liability_id}/restore", response_model=AssetLiabilityOut)
+def restore_liability(liability_id: int, user: User = Depends(get_current_user),
+                      db: Session = Depends(get_db)):
+    return asset_service.restore_liability(db, user, liability_id)
 
 
 @router.post("/liabilities/{liability_id}/repay", response_model=AssetLiabilityOut)

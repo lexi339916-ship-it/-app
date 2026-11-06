@@ -80,6 +80,8 @@ class BillIn(BaseModel):
     funding_account: str = Field(default="", max_length=40)
     # 可选：关联资产账户；新建账单会同步账户余额，旧账单补关联不追溯
     account_id: int | None = None
+    # 可选：信用卡/分期消费关联负债；与 account_id 互斥
+    liability_id: int | None = None
 
 
 class BillOut(BaseModel):
@@ -90,6 +92,8 @@ class BillOut(BaseModel):
     category_id: int | None
     account_id: int | None = None
     account_name: str = ""
+    liability_id: int | None = None
+    liability_name: str = ""
     bill_date: date
     remark: str
     source: str
@@ -875,6 +879,7 @@ class DecisionSimulationIn(BaseModel):
     category: str = Field(default="购物", min_length=1, max_length=40)
     goal_id: int | None = None
     horizon_months: int = Field(default=3, ge=1, le=36)
+    account_id: int | None = None
 
 
 class DecisionPurchaseOut(BaseModel):
@@ -942,6 +947,24 @@ class DecisionRecommendationOut(BaseModel):
     action_hint: str
 
 
+class DecisionAssetOut(BaseModel):
+    available: bool = False
+    account_id: int | None = None
+    account_name: str = ""
+    liquid_assets_before: Decimal = Decimal("0")
+    liquid_assets_after: Decimal = Decimal("0")
+    fixed_assets: Decimal = Decimal("0")
+    total_liabilities: Decimal = Decimal("0")
+    net_worth_before: Decimal = Decimal("0")
+    net_worth_after: Decimal = Decimal("0")
+    emergency_months_before: float | None = None
+    emergency_months_after: float | None = None
+    sufficient: bool = True
+    shortfall: Decimal = Decimal("0")
+    coverage_ratio: float = 0.0
+    message: str = ""
+
+
 class DecisionSimulationOut(BaseModel):
     available: bool
     missing: list[str] = Field(default_factory=list)
@@ -953,6 +976,7 @@ class DecisionSimulationOut(BaseModel):
     purchase: DecisionPurchaseOut
     cashflow: DecisionCashflowOut
     goal: DecisionGoalOut | None = None
+    asset: DecisionAssetOut | None = None
     scenarios: list[DecisionScenarioOut] = Field(default_factory=list)
     recommendations: list[DecisionRecommendationOut] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
@@ -1029,7 +1053,10 @@ class CsvConfirmOut(BaseModel):
 # ---------- 个人资产管理 ----------
 # 金额全部使用 Decimal；账户/负债/流水均按 user_id 隔离。
 
-AssetAccountType = Literal["cash", "bank", "wechat", "alipay", "savings", "other"]
+AssetAccountType = Literal[
+    "cash", "bank", "wechat", "alipay", "savings",
+    "property", "vehicle", "investment", "valuables", "other",
+]
 AssetLiabilityType = Literal["credit_card", "installment", "personal_loan", "other"]
 
 
@@ -1165,12 +1192,16 @@ class AssetTransferOut(BaseModel):
 
 class AssetOverviewOut(BaseModel):
     total_assets: Decimal
+    liquid_assets: Decimal
+    fixed_assets: Decimal
     total_liabilities: Decimal
     net_worth: Decimal
     account_count: int
     liability_count: int
     accounts: list[AssetAccountOut] = Field(default_factory=list)
     liabilities: list[AssetLiabilityOut] = Field(default_factory=list)
+    archived_accounts: list[AssetAccountOut] = Field(default_factory=list)
+    archived_liabilities: list[AssetLiabilityOut] = Field(default_factory=list)
     last_updated_at: datetime | None = None
     as_of: datetime
     has_data: bool = False

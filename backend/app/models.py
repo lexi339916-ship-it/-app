@@ -46,6 +46,8 @@ class Bill(Base):
     category_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # 可选：关联到用户维护的资产账户；为空表示不计入资产账本（兼容旧账单）
     account_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    # 可选：信用卡/分期消费关联负债；与 account_id 互斥
+    liability_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     type: Mapped[str] = mapped_column(Enum("income", "expense"), nullable=False)
     amount: Mapped[Decimal] = mapped_column(DECIMAL(12, 2), nullable=False)
     bill_date: Mapped[datetime] = mapped_column(Date, nullable=False)

@@ -28,7 +28,11 @@ from app.schemas import (
     AssetTransactionPageOut, AssetTransferIn, AssetTransferOut,
 )
 
-ASSET_TYPES = {"cash", "bank", "wechat", "alipay", "savings", "other"}
+ASSET_TYPES = {
+    "cash", "bank", "wechat", "alipay", "savings",
+    "property", "vehicle", "investment", "valuables", "other",
+}
+LIQUID_ASSET_TYPES = {"cash", "bank", "wechat", "alipay", "savings"}
 LIABILITY_TYPES = {"credit_card", "installment", "personal_loan", "other"}
 
 
@@ -122,7 +126,8 @@ def _post_account_tx(db: Session, account: AssetAccount, type_: str,
 
 def _post_liability_tx(db: Session, liability: AssetLiability, type_: str,
                        direction: str, amount: Decimal, note: str,
-                       source: str = "manual", transfer_group_id: str = "") -> AssetTransaction:
+                       source: str = "manual", transfer_group_id: str = "",
+                       related_bill_id: int | None = None) -> AssetTransaction:
     amount = q2(amount)
     if amount <= 0:
         raise HTTPException(400, "变动金额必须大于 0")
@@ -136,6 +141,7 @@ def _post_liability_tx(db: Session, liability: AssetLiability, type_: str,
         user_id=liability.user_id, liability_id=liability.id, type=type_,
         direction=direction, amount=amount, before_amount=before,
         after_amount=after, note=(note or "")[:200], source=source,
+        related_bill_id=related_bill_id,
         transfer_group_id=(transfer_group_id or "")[:40], status="posted")
     db.add(tx)
     db.flush()
@@ -230,6 +236,14 @@ def archive_account(db: Session, user: User, account_id: int) -> AssetDeleteOut:
     db.delete(row)
     db.commit()
     return AssetDeleteOut(ok=True, archived=False, message="账户已删除")
+
+
+def restore_account(db: Session, user: User, account_id: int) -> AssetAccountOut:
+    row = _get_account(db, user, account_id, active_only=False)
+    row.is_active = 1
+    db.commit()
+    db.refresh(row)
+    return _account_out(row)
 
 
 def transfer(db: Session, user: User, data: AssetTransferIn) -> AssetTransferOut:
@@ -357,6 +371,16 @@ def archive_liability(db: Session, user: User, liability_id: int) -> AssetDelete
     return AssetDeleteOut(ok=True, archived=False, message="负债已删除")
 
 
+def restore_liability(db: Session, user: User, liability_id: int) -> AssetLiabilityOut:
+    row = _get_liability(db, user, liability_id, active_only=False)
+    row.is_active = 1
+    if q2(row.outstanding) > 0:
+        row.status = "active"
+    db.commit()
+    db.refresh(row)
+    return _liability_out(row)
+
+
 # ---------------- 总览与流水 ----------------
 
 def overview(db: Session, user: User) -> AssetOverviewOut:
@@ -367,7 +391,16 @@ def overview(db: Session, user: User) -> AssetOverviewOut:
         AssetLiability.user_id == user.id, AssetLiability.is_active == 1)
         .order_by(AssetLiability.status, AssetLiability.due_date,
                   AssetLiability.id)).all()
+    archived_accounts = db.scalars(select(AssetAccount).where(
+        AssetAccount.user_id == user.id, AssetAccount.is_active == 0)
+        .order_by(AssetAccount.updated_at.desc(), AssetAccount.id)).all()
+    archived_liabilities = db.scalars(select(AssetLiability).where(
+        AssetLiability.user_id == user.id, AssetLiability.is_active == 0)
+        .order_by(AssetLiability.updated_at.desc(), AssetLiability.id)).all()
     total_assets = q2(sum((q2(r.balance) for r in accounts), Decimal("0")))
+    liquid_assets = q2(sum((q2(r.balance) for r in accounts
+                            if r.type in LIQUID_ASSET_TYPES), Decimal("0")))
+    fixed_assets = q2(total_assets - liquid_assets)
     total_liabilities = q2(sum((q2(r.outstanding) for r in liabilities
                                 if r.status == "active"), Decimal("0")))
     latest_tx = db.scalar(select(func.max(AssetTransaction.created_at)).where(
@@ -376,11 +409,15 @@ def overview(db: Session, user: User) -> AssetOverviewOut:
     if latest_tx:
         timestamps.append(latest_tx)
     return AssetOverviewOut(
-        total_assets=total_assets, total_liabilities=total_liabilities,
+        total_assets=total_assets, liquid_assets=liquid_assets,
+        fixed_assets=fixed_assets,
+        total_liabilities=total_liabilities,
         net_worth=q2(total_assets - total_liabilities),
         account_count=len(accounts), liability_count=len(liabilities),
         accounts=[_account_out(r) for r in accounts],
         liabilities=[_liability_out(r) for r in liabilities],
+        archived_accounts=[_account_out(r) for r in archived_accounts],
+        archived_liabilities=[_liability_out(r) for r in archived_liabilities],
         last_updated_at=max(timestamps) if timestamps else None,
         as_of=datetime.now(), has_data=bool(accounts or liabilities))
 
@@ -487,7 +524,7 @@ def change_analysis(db: Session, user: User, month: str = "") -> AssetChangeAnal
                 components["manual"] += signed
         if row.liability_id:
             if row.type in ("liability_increase", "liability_repay",
-                            "liability_adjustment"):
+                            "liability_adjustment", "bill_reversal"):
                 components["liability"] -= signed
             elif row.type == "bill_expense":
                 components["consumption"] -= signed
@@ -557,4 +594,46 @@ def reverse_bill_movements(db: Session, user: User, bill: Bill) -> int:
             "in" if row.direction == "out" else "out",
             q2(row.amount), f"冲正：{row.note or '账单'}",
             source="bill", related_bill_id=bill.id)
+    return len(rows)
+
+
+def post_bill_liability(db: Session, user: User, bill: Bill) -> None:
+    """信用卡/分期消费记账：增加负债欠款，不扣减资产账户。"""
+    if not bill.liability_id:
+        return
+    if bill.type != "expense":
+        raise HTTPException(400, "只有支出账单可以计入负债")
+    liability = _get_liability(db, user, bill.liability_id, for_update=True)
+    _post_liability_tx(
+        db, liability, "liability_increase", "in", q2(bill.amount),
+        bill.remark or "信用卡/分期消费", source="bill",
+        related_bill_id=bill.id)
+
+
+def reverse_bill_liability(db: Session, user: User, bill: Bill) -> int:
+    """冲正某笔账单对负债的影响；保留原流水并追加 bill_reversal。"""
+    rows = db.scalars(select(AssetTransaction).where(
+        AssetTransaction.user_id == user.id,
+        AssetTransaction.related_bill_id == bill.id,
+        AssetTransaction.liability_id.is_not(None),
+        AssetTransaction.status == "posted",
+        AssetTransaction.type.in_(("liability_increase", "liability_adjustment")),
+    ).order_by(AssetTransaction.id)).all()
+    net = q2(sum((q2(r.after_amount) - q2(r.before_amount) for r in rows),
+                 Decimal("0")))
+    if net == 0:
+        return 0
+    liabilities = {r.liability_id for r in rows}
+    if len(liabilities) != 1:
+        raise HTTPException(409, "账单负债关联不一致，无法自动冲正")
+    liability = _get_liability(db, user, int(liabilities.pop()),
+                               active_only=False, for_update=True)
+    if net > 0 and q2(liability.outstanding) < net:
+        raise HTTPException(
+            409, "该负债已发生还款，当前欠款小于账单金额，请先调整欠款后再修改/删除")
+    for row in rows:
+        row.status = "reversed"
+    _post_liability_tx(
+        db, liability, "bill_reversal", "out" if net > 0 else "in",
+        abs(net), f"冲正：{bill.remark or '账单'}", source="bill")
     return len(rows)

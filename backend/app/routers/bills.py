@@ -7,7 +7,7 @@ from sqlalchemy import extract, func, select
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user, get_db
-from app.models import AssetAccount, Bill, BillCategory, User
+from app.models import AssetAccount, AssetLiability, Bill, BillCategory, User
 from app.schemas import BillIn, BillOut, BillPageOut
 from app.services import asset_service
 
@@ -34,6 +34,24 @@ def _resolve_account(db: Session, user: User, account_id: int | None) -> AssetAc
     return row
 
 
+def _resolve_liability(db: Session, user: User,
+                       liability_id: int | None) -> AssetLiability | None:
+    if liability_id is None:
+        return None
+    row = db.get(AssetLiability, int(liability_id))
+    if row is None or row.user_id != user.id or not row.is_active:
+        raise HTTPException(400, "所选负债不存在或已停用")
+    return row
+
+
+def _validate_asset_source(account: AssetAccount | None,
+                           liability: AssetLiability | None, type_: str) -> None:
+    if account is not None and liability is not None:
+        raise HTTPException(400, "资产账户和负债不能同时关联，请选择其中一个")
+    if liability is not None and type_ != "expense":
+        raise HTTPException(400, "只有支出账单可以计入负债")
+
+
 def _to_out(db: Session, row: Bill) -> BillOut:
     category_name = "未分类"
     if row.category_id:
@@ -45,10 +63,16 @@ def _to_out(db: Session, row: Bill) -> BillOut:
         account = db.get(AssetAccount, row.account_id)
         if account:
             account_name = account.name
+    liability_name = ""
+    if row.liability_id:
+        liability = db.get(AssetLiability, row.liability_id)
+        if liability:
+            liability_name = liability.name
     return BillOut(
         id=row.id, type=row.type, amount=row.amount, category=category_name,
         category_id=row.category_id, account_id=row.account_id,
-        account_name=account_name, bill_date=row.bill_date, remark=row.remark,
+        account_name=account_name, liability_id=row.liability_id,
+        liability_name=liability_name, bill_date=row.bill_date, remark=row.remark,
         source=row.source, pay_channel=row.pay_channel or "",
         funding_account=row.funding_account or "", created_at=row.created_at)
 
@@ -113,18 +137,27 @@ def create_bill(data: BillIn, user: User = Depends(get_current_user),
         raise HTTPException(400, "金额必须在 0.01 ~ 9999999999.99 之间")
     cat = _resolve_category(db, user, data.category, data.type)
     account = _resolve_account(db, user, data.account_id)
+    liability = _resolve_liability(db, user, data.liability_id)
+    _validate_asset_source(account, liability, data.type)
     row = Bill(
-        user_id=user.id, category_id=cat.id, account_id=account.id if account else None,
+        user_id=user.id, category_id=cat.id,
+        account_id=account.id if account else None,
+        liability_id=liability.id if liability else None,
         type=data.type, amount=data.amount, bill_date=data.bill_date,
         remark=data.remark, source=data.source,
         pay_channel=data.pay_channel,
-        funding_account=(data.funding_account or (account.name if account else ""))[:40])
+        funding_account=(data.funding_account
+                         or (account.name if account else "")
+                         or (liability.name if liability else ""))[:40])
     db.add(row)
     try:
         db.flush()
         if account:
             # 新建账单显式关联账户时才影响资产余额
             asset_service.post_bill_movement(db, user, row)
+        elif liability:
+            # 信用卡/分期消费：增加负债，不扣资产账户
+            asset_service.post_bill_liability(db, user, row)
         db.commit()
     except Exception:
         db.rollback()
@@ -145,17 +178,36 @@ def update_bill(bill_id: int, data: BillIn, user: User = Depends(get_current_use
     row = _get_owned(db, user, bill_id)
     cat = _resolve_category(db, user, data.category, data.type)
     account = _resolve_account(db, user, data.account_id)
+    liability = _resolve_liability(db, user, data.liability_id)
+    _validate_asset_source(account, liability, data.type)
     old_account_id = row.account_id
+    old_liability_id = row.liability_id
     old_type, old_amount = row.type, row.amount
     new_account_id = account.id if account else None
-    ledger_changed = bool(old_account_id) and (
+    new_liability_id = liability.id if liability else None
+
+    # 账户：仅在原账单已关联账户、且金额/类型/账户变化时冲正并重记
+    asset_changed = bool(old_account_id) and (
         old_type != data.type or old_amount != data.amount
         or old_account_id != new_account_id)
-    reversed_count = 0
+    asset_switch_from_liability = bool(old_liability_id) and bool(new_account_id)
+    asset_post = bool(new_account_id) and (asset_changed or asset_switch_from_liability)
+
+    # 负债：原关联变化、从账户切换、或旧账单第一次关联负债时记账
+    liability_changed = bool(old_liability_id) and (
+        old_type != data.type or old_amount != data.amount
+        or old_liability_id != new_liability_id)
+    liability_switch_from_account = bool(old_account_id) and bool(new_liability_id)
+    liability_new = (new_liability_id is not None
+                     and old_liability_id is None and old_account_id is None)
+    liability_post = bool(new_liability_id) and (
+        liability_changed or liability_switch_from_account or liability_new)
+
     try:
-        # 旧关联账单的金额/类型/账户发生变化时才冲正；只改备注不动余额
-        if ledger_changed:
-            reversed_count = asset_service.reverse_bill_movements(db, user, row)
+        if asset_changed:
+            asset_service.reverse_bill_movements(db, user, row)
+        if liability_changed:
+            asset_service.reverse_bill_liability(db, user, row)
         row.type = data.type
         row.amount = data.amount
         row.bill_date = data.bill_date
@@ -163,10 +215,15 @@ def update_bill(bill_id: int, data: BillIn, user: User = Depends(get_current_use
         row.category_id = cat.id
         row.source = data.source
         row.pay_channel = data.pay_channel
-        row.funding_account = (data.funding_account or (account.name if account else ""))[:40]
+        row.funding_account = (data.funding_account
+                               or (account.name if account else "")
+                               or (liability.name if liability else ""))[:40]
         row.account_id = new_account_id
-        if account and reversed_count > 0:
+        row.liability_id = new_liability_id
+        if asset_post:
             asset_service.post_bill_movement(db, user, row)
+        if liability_post:
+            asset_service.post_bill_liability(db, user, row)
         db.commit()
     except Exception:
         db.rollback()
@@ -182,6 +239,8 @@ def delete_bill(bill_id: int, user: User = Depends(get_current_user),
     try:
         if row.account_id:
             asset_service.reverse_bill_movements(db, user, row)
+        if row.liability_id:
+            asset_service.reverse_bill_liability(db, user, row)
         db.delete(row)
         db.commit()
     except Exception:

@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { apiBill, apiAddBill, apiUpdateBill, apiDeleteBill, apiCategories, apiBillCheck, apiAlertAction } from '../../api/index.js'
-import { apiAssetAccounts } from '../../api/assets.js'
+import { apiAssetAccounts, apiAssetLiabilities } from '../../api/assets.js'
 import { categoryMeta } from '../../common/category-icons.js'
 import BudgetAlertPopup from '../../components/budget-alert-popup.vue'
 
@@ -16,6 +16,8 @@ const payChannel = ref('')
 const fundingAccount = ref('')
 const accountId = ref(null)
 const accounts = ref([])
+const liabilityId = ref(null)
+const liabilities = ref([])
 const categories = ref([])
 const saving = ref(false)
 // OCR 截图识别进入：保存时 source 标记为 receipt（截图草稿统一进 Agent 工具抽屉）
@@ -34,6 +36,11 @@ const accountIndex = computed(() => {
   const index = accountOptions.value.findIndex(a => a.id === accountId.value)
   return index >= 0 ? index : 0
 })
+const liabilityOptions = computed(() => [{ id: null, name: '不计入负债' }, ...liabilities.value])
+const liabilityIndex = computed(() => {
+  const index = liabilityOptions.value.findIndex(l => l.id === liabilityId.value)
+  return index >= 0 ? index : 0
+})
 
 async function loadCategories() {
   const res = await apiCategories()
@@ -46,10 +53,28 @@ async function loadAccounts() {
   } catch (e) { /* 资产账户失败不阻塞记账 */ }
 }
 
+async function loadLiabilities() {
+  try {
+    liabilities.value = await apiAssetLiabilities()
+  } catch (e) { /* 负债失败不阻塞记账 */ }
+}
+
 function selectAccount(e) {
   const option = accountOptions.value[Number(e.detail.value)]
   accountId.value = option ? option.id : null
-  if (option && option.id != null) fundingAccount.value = option.name
+  if (option && option.id != null) {
+    liabilityId.value = null
+    fundingAccount.value = option.name
+  }
+}
+
+function selectLiability(e) {
+  const option = liabilityOptions.value[Number(e.detail.value)]
+  liabilityId.value = option ? option.id : null
+  if (option && option.id != null) {
+    accountId.value = null
+    fundingAccount.value = option.name
+  }
 }
 
 function switchType(t) {
@@ -58,6 +83,7 @@ function switchType(t) {
   if (!typeCategories.value.some(c => c.name === category.value)) {
     category.value = ''
   }
+  if (t === 'income') liabilityId.value = null
 }
 
 function pickCategory(name) { category.value = name }
@@ -72,6 +98,7 @@ async function loadBill(id) {
   payChannel.value = b.pay_channel || ''
   fundingAccount.value = b.funding_account || ''
   accountId.value = b.account_id || null
+  liabilityId.value = b.liability_id || null
   originalSource.value = b.source || 'manual'
 }
 
@@ -95,6 +122,7 @@ async function save() {
     pay_channel: payChannel.value,
     funding_account: fundingAccount.value,
     account_id: accountId.value,
+    liability_id: liabilityId.value,
   }
   saving.value = true
   try {
@@ -149,7 +177,7 @@ onLoad(async (options) => {
   if (options && options.date && /^\d{4}-\d{2}-\d{2}$/.test(options.date)) {
     billDate.value = options.date
   }
-  await Promise.all([loadCategories(), loadAccounts()])
+  await Promise.all([loadCategories(), loadAccounts(), loadLiabilities()])
   if (options && options.id) {
     editId.value = Number(options.id)
     uni.setNavigationBarTitle({ title: '编辑账单' })
@@ -233,6 +261,20 @@ onLoad(async (options) => {
       <text v-if="accountId != null" class="account-hint">
         保存后会按这笔账单同步账户余额；旧账单补关联不追溯扣款。
       </text>
+
+      <view v-if="type === 'expense'">
+        <text class="field-label">或计入负债（信用卡 / 分期）</text>
+        <picker v-if="liabilities.length" mode="selector" :range="liabilityOptions"
+          range-key="name" :value="liabilityIndex" @change="selectLiability">
+          <view class="picker-value">
+            {{ liabilityId != null ? (liabilities.find(l => l.id === liabilityId) || {}).name : '不计入负债' }} ▾
+          </view>
+        </picker>
+        <view v-else class="account-empty">还没有负债记录，可在「个人资产管理 → 负债」添加</view>
+        <text v-if="liabilityId != null" class="account-hint">
+          信用卡/分期消费会增加负债欠款，不扣减资产账户；资产账户与负债只能选一个。
+        </text>
+      </view>
 
       <input v-if="payChannel" class="input channel-account" v-model="fundingAccount"
         placeholder="扣款账户（选填），如：零钱 / 工商银行储蓄卡" placeholder-class="ph" />

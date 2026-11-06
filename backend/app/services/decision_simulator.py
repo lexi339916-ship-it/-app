@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Bill, SavingsGoal, User
+from app.services import asset_service
 from app.services.agent import tools
 
 DISCLAIMER = ("本测算基于历史账单、当前预算和储蓄目标的确定性估算，"
@@ -183,8 +184,65 @@ def _goal_analysis(db: Session, user: User, goal_id: int | None,
     }, "ok"
 
 
+def _asset_impact(db: Session, user: User, amount: Decimal,
+                  account_id: int | None, monthly_expense: Decimal) -> dict:
+    """资产视角：只用可动用资产判断支付能力，固定资产只计入净资产。"""
+    overview = asset_service.overview(db, user)
+    accounts = list(overview.accounts)
+    selected = None
+    if account_id is not None:
+        selected = next((a for a in accounts if a.id == int(account_id)), None)
+        if selected is None:
+            return {"available": False, "message": "所选资产账户不存在或已停用"}
+    if not accounts:
+        return {"available": False, "message": "还没有维护资产账户，未计算账户余额影响。"}
+
+    if selected is not None:
+        liquid_before = q2(selected.balance)
+        account_name = selected.name
+    else:
+        liquid_before = q2(overview.liquid_assets)
+        account_name = ""
+    fixed_assets = q2(overview.fixed_assets)
+    liabilities = q2(overview.total_liabilities)
+    net_before = q2(overview.net_worth)
+    liquid_after = q2(liquid_before - amount)
+    net_after = q2(net_before - amount)
+    sufficient = liquid_after >= 0
+    shortfall = q2(abs(liquid_after)) if liquid_after < 0 else Decimal("0")
+    expense = q2(monthly_expense)
+    months_before = round(float(liquid_before / expense), 1) if expense > 0 else None
+    months_after = (round(float(max(0, liquid_after) / expense), 1)
+                    if expense > 0 else None)
+    analysis = asset_service.change_analysis(db, user)
+    if sufficient:
+        message = (f"可动用资产 ¥{liquid_before}，购买后约 ¥{liquid_after}；"
+                   f"净资产从 ¥{net_before} 变为 ¥{net_after}。")
+    else:
+        message = (f"可动用资产只有 ¥{liquid_before}，还差 ¥{shortfall}；"
+                   "固定资产不能直接用于这次支付。")
+    return {
+        "available": True,
+        "account_id": selected.id if selected else None,
+        "account_name": account_name,
+        "liquid_assets_before": liquid_before,
+        "liquid_assets_after": q2(liquid_after),
+        "fixed_assets": fixed_assets,
+        "total_liabilities": liabilities,
+        "net_worth_before": net_before,
+        "net_worth_after": net_after,
+        "emergency_months_before": months_before,
+        "emergency_months_after": months_after,
+        "sufficient": sufficient,
+        "shortfall": shortfall,
+        "coverage_ratio": analysis.coverage_ratio,
+        "message": message,
+    }
+
+
 def simulate(db: Session, user: User, amount: Decimal, category: str,
-             goal_id: int | None = None, horizon_months: int = 3) -> dict:
+             goal_id: int | None = None, horizon_months: int = 3,
+             account_id: int | None = None) -> dict:
     amount = q2(amount)
     cashflow = _cashflow(db, user.id)
     budget = _budget_impact(db, user, category, amount)
@@ -202,6 +260,8 @@ def simulate(db: Session, user: User, amount: Decimal, category: str,
     monthly_net = cashflow["monthly_net"]
     monthly_net_after = q2(monthly_net - amount)
     goal_delay = goal["delay_days"] if goal else None
+    asset = _asset_impact(db, user, amount, account_id,
+                          cashflow["monthly_expense"])
 
     scenarios: list[dict] = []
     if cashflow["available"] and goal:
@@ -286,6 +346,23 @@ def simulate(db: Session, user: User, amount: Decimal, category: str,
             "impact_amount": None, "priority": "medium",
             "action_hint": "先在预算中心为该分类设置预算，再回来测算。",
         })
+    if asset.get("available") and not asset["sufficient"]:
+        recommendations.append({
+            "title": "可动用资产不足以支付",
+            "detail": (f"购买后可动用资产约为 ¥{asset['liquid_assets_after']}，"
+                       f"还差 ¥{asset['shortfall']}。固定资产不会自动变现。"),
+            "impact_amount": asset["shortfall"], "priority": "high",
+            "action_hint": "降低购买金额、分月购买，或先补充现金/活期账户。",
+        })
+    elif asset.get("available") and asset.get("emergency_months_after") is not None \
+            and asset["emergency_months_after"] < 1:
+        recommendations.append({
+            "title": "购买后应急金不足 1 个月",
+            "detail": (f"按近 3 个月平均支出测算，购买后可动用资产仅够约 "
+                       f"{asset['emergency_months_after']} 个月。"),
+            "impact_amount": amount, "priority": "medium",
+            "action_hint": "建议保留至少 1 个月开支，再决定是否购买。",
+        })
     if cashflow["available"] and goal and (goal_delay or 0) == 0 \
             and not (budget["available"] and budget["over_budget"]):
         recommendations.append({
@@ -311,6 +388,8 @@ def simulate(db: Session, user: User, amount: Decimal, category: str,
                       else (f"目标完成时间会晚约 {goal['extra_days']} 天，"
                             "但仍在观察周期内。"
                             if goal.get("extra_days") else "目标进度基本不受影响。")))
+    if asset.get("message"):
+        message += " " + asset["message"]
 
     return {
         "available": available,
@@ -328,6 +407,7 @@ def simulate(db: Session, user: User, amount: Decimal, category: str,
         },
         "cashflow": {**cashflow, "monthly_net_after": monthly_net_after},
         "goal": goal,
+        "asset": asset,
         "scenarios": scenarios,
         "recommendations": recommendations[:5],
         "assumptions": [

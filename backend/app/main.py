@@ -53,6 +53,7 @@ def _ensure_schema_patches() -> None:
         },
         "bills": {
             "account_id": "ALTER TABLE bills ADD COLUMN account_id BIGINT",
+            "liability_id": "ALTER TABLE bills ADD COLUMN liability_id BIGINT",
         },
         "subscriptions": {
             "category_id": "ALTER TABLE subscriptions ADD COLUMN category_id BIGINT",

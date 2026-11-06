@@ -39,8 +39,9 @@
 
 - 入口：我的 → 常用功能第一项「个人资产管理」。
 - 页面：`pages/assets/assets`，账户/负债/流水三个 Tab；表单在 `components/assets/asset-form-sheet.vue`。
+- 资产类型：现金/银行/微信/支付宝/储蓄，房产/车辆/理财/贵重物品；总览区分可动用与固定资产。
 - API：`api/assets.js`；金额由后端 Decimal 计算，前端只展示。
-- 规则：转账不生成账单；账单只有显式关联 `account_id` 才影响账户余额。
+- 规则：转账不生成账单；账单只有显式关联 `account_id` 才影响账户余额，关联 `liability_id` 时自动增加负债。
 
 ## 状态与网络
 

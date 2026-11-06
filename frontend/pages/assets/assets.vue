@@ -5,7 +5,8 @@ import {
   apiAddAssetAccount, apiAddAssetLiability, apiAdjustAssetAccount,
   apiAdjustAssetLiability, apiAssetOverview, apiAssetTransactions,
   apiDeleteAssetAccount, apiDeleteAssetLiability, apiRepayAssetLiability,
-  apiAssetTransfer, apiUpdateAssetAccount, apiUpdateAssetLiability,
+  apiRestoreAssetAccount, apiRestoreAssetLiability, apiAssetTransfer,
+  apiUpdateAssetAccount, apiUpdateAssetLiability,
 } from '../../api/assets.js'
 import {
   assetMeta, fmtMoney, liabilityMeta, txLabel,
@@ -32,11 +33,14 @@ const sheetItem = ref(null)
 const saving = ref(false)
 
 const accounts = computed(() => {
-  const order = ['cash', 'bank', 'wechat', 'alipay', 'savings', 'other']
+  const order = ['cash', 'bank', 'wechat', 'alipay', 'savings',
+    'investment', 'property', 'vehicle', 'valuables', 'other']
   return [...(overview.value.accounts || [])].sort(
     (a, b) => order.indexOf(a.type) - order.indexOf(b.type))
 })
 const liabilities = computed(() => overview.value.liabilities || [])
+const archivedAccounts = computed(() => overview.value.archived_accounts || [])
+const archivedLiabilities = computed(() => overview.value.archived_liabilities || [])
 const hasMoreTx = computed(() => transactions.value.length < txTotal.value)
 const activeAccounts = computed(() => accounts.value.filter(a => a.is_active !== false))
 
@@ -280,6 +284,22 @@ function deleteLiability(item) {
   })
 }
 
+async function restoreAccount(item) {
+  try {
+    await apiRestoreAssetAccount(item.id)
+    toast('账户已恢复')
+    await load()
+  } catch (e) { /* 统一提示 */ }
+}
+
+async function restoreLiability(item) {
+  try {
+    await apiRestoreAssetLiability(item.id)
+    toast('负债已恢复')
+    await load()
+  } catch (e) { /* 统一提示 */ }
+}
+
 function txTone(tx) {
   if (tx.liability_id) return tx.direction === 'in' ? 'tone-warn' : 'tone-in'
   if (tx.type === 'transfer_out') return 'tone-neutral'
@@ -332,6 +352,10 @@ onPullDownRefresh(async () => {
           <text class="cell-label">总负债</text>
           <text class="cell-value debt">{{ money(overview.total_liabilities) }}</text>
         </view>
+      </view>
+      <view class="asset-split">
+        <text>可动用 {{ money(overview.liquid_assets) }}</text>
+        <text>固定资产 {{ money(overview.fixed_assets) }}</text>
       </view>
       <view class="summary-foot">
         <text>最近更新：{{ shortTime(overview.last_updated_at) }}</text>
@@ -499,6 +523,24 @@ onPullDownRefresh(async () => {
       </view>
     </block>
 
+    <!-- 已停用：历史流水保留，可恢复 -->
+    <view v-if="archivedAccounts.length || archivedLiabilities.length" class="archived-wrap">
+      <text class="section-title">已停用</text>
+      <text class="section-sub">历史流水保留，可随时恢复</text>
+      <view class="card archived-card">
+        <view class="archived-row" v-for="a in archivedAccounts" :key="'archived-a-' + a.id">
+          <text class="archived-name">{{ a.name }}</text>
+          <text class="archived-type">{{ typeLabel(a) }}</text>
+          <text class="archived-action" @click="restoreAccount(a)">恢复</text>
+        </view>
+        <view class="archived-row" v-for="l in archivedLiabilities" :key="'archived-l-' + l.id">
+          <text class="archived-name">{{ l.name }}</text>
+          <text class="archived-type">{{ debtTypeLabel(l) }}</text>
+          <text class="archived-action" @click="restoreLiability(l)">恢复</text>
+        </view>
+      </view>
+    </view>
+
     <AssetFormSheet
       :visible="sheetVisible"
       :kind="sheetKind"
@@ -534,6 +576,8 @@ onPullDownRefresh(async () => {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell-value.debt { color: #FFE0E0; }
 .summary-divider { width: 1rpx; height: 50rpx; background: rgba(255, 255, 255, .22); }
+.asset-split { position: relative; z-index: 1; display: flex; justify-content: space-between;
+  gap: 16rpx; margin-top: 14rpx; font-size: 21rpx; color: rgba(255, 255, 255, .78); }
 .summary-foot { position: relative; z-index: 1; display: flex; justify-content: space-between;
   font-size: 21rpx; color: rgba(255, 255, 255, .66); margin-top: 20rpx; }
 .disclaimer { display: block; font-size: 21rpx; color: #A6AAC2; line-height: 1.6;
@@ -608,4 +652,13 @@ onPullDownRefresh(async () => {
 .tx-amount.tone-warn { color: #D98A32; }
 .tx-amount.tone-neutral { color: #6C7BF5; }
 .load-more { text-align: center; font-size: 24rpx; color: #8A90A8; padding: 24rpx; }
+.archived-wrap { margin-top: 30rpx; }
+.archived-card { padding: 4rpx 24rpx; }
+.archived-row { display: flex; align-items: center; gap: 14rpx; padding: 18rpx 0;
+  border-bottom: 1rpx dashed #F0EDF8; }
+.archived-row:last-child { border-bottom: none; }
+.archived-name { flex: 1; min-width: 0; font-size: 25rpx; color: #5A5F78;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.archived-type { font-size: 21rpx; color: #A6AAC2; flex-shrink: 0; }
+.archived-action { font-size: 23rpx; color: #6C7BF5; flex-shrink: 0; }
 </style>

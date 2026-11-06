@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS bills (
   category_id BIGINT NULL,
   -- 可选：关联用户维护的资产账户；为空表示不计入资产账本（兼容旧账单）
   account_id BIGINT NULL,
+  -- 可选：信用卡/分期消费关联负债；与 account_id 互斥
+  liability_id BIGINT NULL,
   type ENUM('income','expense') NOT NULL,
   amount DECIMAL(12,2) NOT NULL,
   bill_date DATE NOT NULL,
@@ -43,6 +45,7 @@ CREATE TABLE IF NOT EXISTS bills (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_bill_user_date (user_id, bill_date),
   INDEX idx_bill_account (account_id),
+  INDEX idx_bill_liability (liability_id),
   CONSTRAINT fk_bill_user FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_bill_category FOREIGN KEY (category_id) REFERENCES bill_categories(id)
 ) ENGINE=InnoDB;
@@ -318,7 +321,7 @@ CREATE TABLE IF NOT EXISTS asset_accounts (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
   name VARCHAR(50) NOT NULL,
-  type VARCHAR(20) NOT NULL DEFAULT 'other',               -- cash/bank/wechat/alipay/savings/other
+  type VARCHAR(20) NOT NULL DEFAULT 'other',               -- cash/bank/wechat/alipay/savings/property/vehicle/investment/valuables/other
   institution VARCHAR(50) NOT NULL DEFAULT '',
   account_hint VARCHAR(8) NOT NULL DEFAULT '',             -- 仅尾号等提示
   balance DECIMAL(14,2) NOT NULL DEFAULT 0,

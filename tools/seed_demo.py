@@ -119,7 +119,23 @@ def seed_assets(db, user: User, cats: dict[str, int]) -> None:
         user_id=user.id, name="应急储蓄", type="savings",
         institution="招商银行", balance=Decimal("8000.00"),
         note="至少保留 1 个月开支", is_active=1)
-    accounts = [bank, wechat, alipay, savings]
+    property_asset = AssetAccount(
+        user_id=user.id, name="自住房产", type="property",
+        institution="不动产", balance=Decimal("800000.00"),
+        note="按当前估值（演示数据）", is_active=1)
+    vehicle = AssetAccount(
+        user_id=user.id, name="家用车", type="vehicle",
+        institution="家用车", balance=Decimal("80000.00"),
+        note="按当前二手估值（演示数据）", is_active=1)
+    investment = AssetAccount(
+        user_id=user.id, name="稳健理财", type="investment",
+        institution="银行理财", balance=Decimal("30000.00"),
+        note="低风险理财，不构成投资建议（演示数据）", is_active=1)
+    valuables = AssetAccount(
+        user_id=user.id, name="收藏与贵重物品", type="valuables",
+        balance=Decimal("20000.00"), note="按保守估值（演示数据）", is_active=1)
+    accounts = [bank, wechat, alipay, savings,
+                property_asset, vehicle, investment, valuables]
     db.add_all(accounts)
     db.flush()
 
@@ -163,9 +179,14 @@ def seed_assets(db, user: User, cats: dict[str, int]) -> None:
         outstanding=Decimal("600.00"),
         due_date=date.today() + timedelta(days=20),
         remark="还有 3 期", status="active", is_active=1)
-    db.add_all([card, installment])
+    mortgage = AssetLiability(
+        user_id=user.id, name="房贷余额", type="personal_loan",
+        outstanding=Decimal("400000.00"), due_date=None,
+        remark="按当前剩余贷款估算（演示数据）",
+        status="active", is_active=1)
+    db.add_all([card, installment, mortgage])
     db.flush()
-    for liability in (card, installment):
+    for liability in (card, installment, mortgage):
         amount = Decimal(str(liability.outstanding))
         db.add(AssetTransaction(
             user_id=user.id, liability_id=liability.id,

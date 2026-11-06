@@ -25,7 +25,7 @@ from app.models import (
 )
 from app.services import ai_service
 from app.services.ai_service import AIServiceError, build_parse_bill_messages
-from app.services import health_service
+from app.services import health_service, asset_service, decision_simulator
 from app.services.agent import policy, tools, trace
 
 VERSION = version.APP_VERSION
@@ -66,6 +66,10 @@ async def run_agent(db: Session, user: User, message: str, mode: str = "auto",
             _run_subscription(db, user, safe_message, run, start)
         elif intent == "goal":
             _run_goal(db, user, safe_message, run, start)
+        elif intent == "asset":
+            _run_asset(db, user, safe_message, run, start)
+        elif intent == "simulate":
+            _run_simulate(db, user, safe_message, run, start)
         else:
             _run_query(db, user, safe_message, run, start)
     except policy.PolicyError as exc:
@@ -97,6 +101,21 @@ def _detect_intent(message: str, mode: str) -> str:
     if mode == "action":
         return "bill"
     text = message.lower()
+    # 购买模拟必须先于记账/目标：用户问的是“如果买”，不是“已经买了”
+    if re.search(r"(如果|假如).{0,16}(买|购买|换|入手)|"
+                 r"(会影响|影响).{0,12}(目标|预算|储蓄)|买了?会", text):
+        return "simulate"
+    # 明确的记账动作 + 金额优先，避免“信用卡消费 300”被资产查询截走
+    if any(k in text for k in ("记账", "记一笔", "花了", "付了", "买了", "收到",
+                               "工资", "还款")) and re.search(
+            r"\d+(?:\.\d+)?\s*(元|块|万|千)|[零一二两三四五六七八九十百千万]+\s*(元|块|万|千)",
+            text):
+        return "bill"
+    # 资产/负债查询：排除“预算余额”等预算问题
+    if "预算" not in text and any(k in text for k in (
+            "资产", "净资产", "负债", "欠款", "信用卡", "房贷", "车贷", "房产",
+            "存款", "余额", "理财", "基金", "账户", "还款", "转账")):
+        return "asset"
     # 明确的“查看/查询”措辞优先，避免“几个订阅”“目标进度”被当成行动任务
     if any(k in text for k in ("几个", "多少个", "哪些", "进度", "列表", "查看",
                                "最贵", "最大")):
@@ -544,6 +563,16 @@ def _run_goal(db: Session, user: User, message: str, run: AgentRun,
     trace.add_step(db, run, "tool", "get_budget_status",
                    {"month": tools.current_month()},
                    {"items": [i for i in overview["items"] if i["amount"] > 0][:8]})
+    asset_overview = asset_service.overview(db, user)
+    asset_context: dict = {}
+    if asset_overview.has_data:
+        asset_context = {
+            "liquid_assets": str(asset_overview.liquid_assets),
+            "fixed_assets": str(asset_overview.fixed_assets),
+            "total_liabilities": str(asset_overview.total_liabilities),
+            "net_worth": str(asset_overview.net_worth),
+        }
+        trace.add_step(db, run, "tool", "get_asset_overview", {}, asset_context)
 
     feasible = avg_net >= monthly_target
     actions: list[dict] = [{
@@ -585,6 +614,10 @@ def _run_goal(db: Session, user: User, message: str, run: AgentRun,
                          for i in adjustments), Decimal("0"))
         answer += (f" 先压缩约 ¥{tools.q2(cut_total)} 的可自由支配预算，"
                    f"剩余靠每月结余补齐，并创建每周复盘任务。")
+    if asset_context:
+        answer += (f" 你目前可动用资产 ¥{asset_context['liquid_assets']}，"
+                   f"净资产 ¥{asset_context['net_worth']}；规划时建议至少保留 1 个月应急金。"
+                   "固定资产不会自动计入目标已存金额。")
     diff = {
         "summary": answer,
         "impact": {
@@ -594,8 +627,9 @@ def _run_goal(db: Session, user: User, message: str, run: AgentRun,
             "avg_monthly_net": str(avg_net), "feasible": feasible,
             "budget_adjustments": len(adjustments),
             "memory_used": memory_used,
+            "assets": asset_context,
         },
-        "evidence": {"source": "bills+category_budgets",
+        "evidence": {"source": "bills+category_budgets+assets",
                      "memory_used": memory_used,
                      "as_of": datetime.now().isoformat(timespec="seconds")},
         "actions": actions,
@@ -647,6 +681,126 @@ def _build_goal_budget_adjustments(category_avg: list[dict], monthly_target: Dec
 
 
 # ---------------- 查询场景 ----------------
+
+def _run_asset(db: Session, user: User, message: str, run: AgentRun,
+               start: float) -> None:
+    """只读资产查询：资产总览、负债、净资产变化；不自动转账/还款。"""
+    text = message.lower()
+    wants_change = any(k in text for k in ("为什么", "变化", "减少", "增加", "原因"))
+    wants_action = any(k in text for k in ("转账", "还款")) and not wants_change
+    if wants_action and not any(k in text for k in ("多少", "查询", "查看", "哪些")):
+        trace.set_plan(db, run, ["识别资产操作", "检查安全边界"])
+        trace.add_step(db, run, "policy", "asset_write_boundary",
+                       {"message": message},
+                       {"hint": "资产转账/还款需在资产管理页手动确认"})
+        answer = ("资产转账和还款涉及真实余额变动，Agent 不会自动执行。"
+                  "请到「我的 → 个人资产管理」操作；我可以在你操作后帮你分析净资产变化。")
+        trace.finish_run(db, run, "completed", answer,
+                         evidence={"source": "asset_policy",
+                                   "intent": "asset_action",
+                                   "as_of": datetime.now().isoformat(timespec="seconds")},
+                         latency_ms=_elapsed(start))
+        return
+
+    if wants_change:
+        trace.set_plan(db, run, [
+            "读取本月资产流水", "拆分消费/收入/转账/负债/手动调整",
+            "计算账单关联覆盖率", "解释净资产变化",
+        ])
+        analysis = asset_service.change_analysis(db, user)
+        data = analysis.model_dump(mode="json")
+        trace.add_step(db, run, "tool", "get_net_worth_change",
+                       {"month": analysis.month}, data)
+        answer = analysis.message
+        if analysis.has_data and analysis.net_worth_change >= 0:
+            answer = ("从账本看，本月净资产没有减少，实际变动为 "
+                      f"+¥{analysis.net_worth_change}。" + answer)
+        elif analysis.has_data:
+            answer = (f"本月净资产减少了 ¥{abs(analysis.net_worth_change)}。" + answer)
+        if analysis.has_data and analysis.coverage_ratio < 1:
+            answer += (f" 当前有 {round(analysis.coverage_ratio * 100)}% 的支出已关联账户；"
+                       "未关联部分不会改变账户余额，分析时已单独标注。")
+        trace.finish_run(
+            db, run, "completed", answer,
+            evidence={
+                "source": "asset_accounts+asset_liabilities+asset_transactions+bills",
+                "intent": "asset_change", "as_of": analysis.as_of.isoformat(),
+                "cards": [{"type": "net_worth_change", "data": data}],
+            },
+            latency_ms=_elapsed(start))
+        return
+
+    trace.set_plan(db, run, [
+        "读取资产账户与负债", "计算总资产/可动用资产/总负债/净资产",
+        "生成资产概览",
+    ])
+    overview = asset_service.overview(db, user)
+    data = overview.model_dump(mode="json")
+    trace.add_step(db, run, "tool", "get_asset_overview", {}, data)
+    if not overview.has_data:
+        answer = ("你还没有维护资产账户。可以到「我的 → 个人资产管理」添加银行卡、微信零钱、"
+                  "房产、车辆或理财产品，我再帮你计算净资产和变化。")
+    else:
+        answer = (f"你当前总资产 ¥{overview.total_assets}，其中可动用 "
+                  f"¥{overview.liquid_assets}、固定资产 ¥{overview.fixed_assets}；"
+                  f"总负债 ¥{overview.total_liabilities}，净资产 ¥{overview.net_worth}。")
+        if overview.accounts:
+            answer += " 账户：" + "、".join(
+                f"{a.name} ¥{a.balance}" for a in overview.accounts[:4]) + "。"
+        if overview.liabilities:
+            answer += " 负债：" + "、".join(
+                f"{l.name} ¥{l.outstanding}" for l in overview.liabilities[:3]) + "。"
+    trace.finish_run(
+        db, run, "completed", answer,
+        evidence={
+            "source": "asset_accounts+asset_liabilities",
+            "intent": "asset_overview", "as_of": data.get("as_of"),
+            "cards": [{
+                "type": "asset_overview" if overview.has_data else "asset_empty",
+                "data": data,
+            }],
+        },
+        latency_ms=_elapsed(start))
+
+
+def _run_simulate(db: Session, user: User, message: str, run: AgentRun,
+                  start: float) -> None:
+    """购买决策模拟：复用 decision_simulator，加入可动用资产/净资产视角。"""
+    trace.set_plan(db, run, [
+        "解析购买金额与分类", "读取预算/目标/资产", "测算购买影响",
+        "生成可执行建议",
+    ])
+    cats = [c.name for c in tools.visible_categories(db, user, "expense")]
+    draft = tools.parse_bill_fallback(message, cats)
+    amount = draft.get("amount")
+    trace.add_step(db, run, "tool", "parse_purchase", {"text": message},
+                   {"amount": str(amount) if amount is not None else None,
+                    "category": draft.get("category")})
+    if amount is None:
+        trace.add_step(db, run, "clarify", "request_missing_slot",
+                       {"missing": ["amount"]},
+                       {"question": "想买的东西大概多少钱？"}, status="wait")
+        trace.finish_run(db, run, "needs_input",
+                         "这项购买模拟还差一个金额。可以说“如果花 3000 元买手机”。",
+                         evidence={"intent": "simulate", "model": "rule",
+                                   "as_of": datetime.now().isoformat(timespec="seconds")},
+                         latency_ms=_elapsed(start))
+        return
+    category = draft.get("category") or "购物"
+    if category not in cats:
+        category = "其他" if "其他" in cats else (cats[0] if cats else "其他")
+    result = decision_simulator.simulate(db, user, amount, category)
+    trace.add_step(db, run, "tool", "simulate_purchase",
+                   {"amount": str(amount), "category": category}, result)
+    trace.finish_run(
+        db, run, "completed", result["message"],
+        evidence={
+            "source": "decision_simulator+bills+budgets+goals+assets",
+            "intent": "simulate", "as_of": result["as_of"],
+            "cards": [{"type": "simulation", "data": result}],
+        },
+        latency_ms=_elapsed(start))
+
 
 def _query_month(text: str) -> str:
     """查询月份：支持“上个月/上月”，其余默认当前月。"""
@@ -1870,4 +2024,4 @@ def delete_memory(db: Session, user: User, memory_id: int) -> None:
 
 
 def tool_count() -> int:
-    return 6  # 读工具：账单/汇总/预算/订阅/目标/待办
+    return 8  # 读工具：账单/汇总/预算/订阅/目标/待办/资产总览/净资产变化

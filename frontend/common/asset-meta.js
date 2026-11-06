@@ -5,6 +5,10 @@ export const ASSET_TYPES = {
   wechat: { label: '微信余额', icon: '💚', color: '#07A85B', bg: '#E9F8F2' },
   alipay: { label: '支付宝余额', icon: '🔵', color: '#1677FF', bg: '#EAF2FF' },
   savings: { label: '储蓄存款', icon: '🏧', color: '#7C6BD8', bg: '#F4F0FF' },
+  property: { label: '房产', icon: '🏠', color: '#7C6BD8', bg: '#F4F0FF' },
+  vehicle: { label: '车辆', icon: '🚗', color: '#4C7FE8', bg: '#EAF2FF' },
+  investment: { label: '理财产品', icon: '📈', color: '#D98A32', bg: '#FFF6E7' },
+  valuables: { label: '贵重物品', icon: '💎', color: '#C77BA6', bg: '#FFF0F8' },
   other: { label: '其他资产', icon: '📦', color: '#8A90A8', bg: '#F6F4FB' },
 }
 

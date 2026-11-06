@@ -79,6 +79,8 @@ function stopVoice() {
 
 const examples = [
   '午饭花了32元，微信付的',
+  '查看我的个人资产',
+  '如果花3000元买手机，会影响储蓄目标吗',
   '帮我检查一下订阅，看看有没有涨价或低频的',
   '3个月存3000元去旅行',
   '这个月钱主要花在哪里？',
@@ -115,6 +117,11 @@ const TOOL_LABELS = {
   largest_bill: '最大支出',
   get_goals: '查询目标',
   get_todos: '查询待办',
+  get_asset_overview: '查询资产',
+  get_net_worth_change: '分析净资产变化',
+  parse_purchase: '解析购买金额',
+  simulate_purchase: '测算购买影响',
+  asset_write_boundary: '资产操作边界',
   approval_required: '等待审批',
   approval_replanned: '重规划',
   execute_approved_action: '执行动作',

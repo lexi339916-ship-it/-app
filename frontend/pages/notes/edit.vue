@@ -116,7 +116,7 @@ onLoad(async (options) => {
       </view>
 
       <text class="field-label">标题</text>
-      <input class="input" v-model="title" placeholder="例如：交课程设计报告" placeholder-class="ph" />
+      <input class="input" v-model="title" placeholder="例如：交季度报告" placeholder-class="ph" />
 
       <text class="field-label">内容</text>
       <textarea class="ta" v-model="content" placeholder="选填" placeholder-class="ph" />

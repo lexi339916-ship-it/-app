@@ -1,0 +1,9 @@
+{
+  "generated_at": "2026-11-05T18:05:21",
+  "total": 94,
+  "passed": 94,
+  "failed": 0,
+  "pass_rate": 1.0,
+  "failures": [],
+  "scope": "审批/拒绝/撤销/并发/异常/跨用户/空库/注入/数据库回查"
+}

@@ -1,10 +1,20 @@
 /**
  * 后端服务地址（默认值）。
  *
- * - 局域网/真机调试：填写电脑的局域网 IP（手机与电脑需同一 Wi-Fi），
- *   APK 中禁止使用 localhost / 127.0.0.1 访问电脑后端。
- * - 当前默认值：http://192.168.41.16:8000（本机当前局域网地址）
- * - 如果电脑 IP 变化，无需改代码：在 App 登录页「服务器设置」
- *   或「我的 → 服务器地址」中填写新地址即可（保存在手机本地）。
+ * - 本地 H5 开发：默认 http://127.0.0.1:8000
+ * - 公网 H5 部署：使用同源地址，由 Nginx 把 /api 反向代理到后端
+ * - App/真机：在登录页「服务器设置」或「我的 → 服务器地址」填写局域网/公网地址
  */
-export const BASE_URL = 'http://192.168.41.16:8000'
+function defaultBaseUrl() {
+  // #ifdef H5
+  if (typeof window !== 'undefined' && window.location) {
+    const host = window.location.hostname
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return window.location.origin
+    }
+  }
+  // #endif
+  return 'http://127.0.0.1:8000'
+}
+
+export const BASE_URL = defaultBaseUrl()

@@ -2,15 +2,22 @@
   "pages": [
     {"path": "pages/login/login", "style": {"navigationBarTitleText": "登录", "navigationStyle": "custom"}},
     {"path": "pages/register/register", "style": {"navigationBarTitleText": "注册"}},
+    {"path": "pages/agent/agent", "style": {"navigationBarTitleText": "知账 Agent"}},
     {"path": "pages/index/index", "style": {"navigationBarTitleText": "首页", "enablePullDownRefresh": true}},
     {"path": "pages/bills/list", "style": {"navigationBarTitleText": "账单"}},
     {"path": "pages/bills/edit", "style": {"navigationBarTitleText": "记一笔"}},
-    {"path": "pages/ai/assistant", "style": {"navigationBarTitleText": "AI 助手"}},
     {"path": "pages/notes/list", "style": {"navigationBarTitleText": "便签"}},
     {"path": "pages/notes/edit", "style": {"navigationBarTitleText": "便签详情"}},
     {"path": "pages/statistics/statistics", "style": {"navigationBarTitleText": "统计分析"}},
+    {"path": "pages/health/report", "style": {"navigationBarTitleText": "消费健康诊断"}},
+    {"path": "pages/simulator/simulator", "style": {"navigationBarTitleText": "消费决策模拟"}},
+    {"path": "pages/import/import", "style": {"navigationBarTitleText": "CSV 账单导入"}},
+    {"path": "pages/notifications/notifications", "style": {"navigationBarTitleText": "消息中心"}},
     {"path": "pages/goals/goals", "style": {"navigationBarTitleText": "目标与挑战"}},
-    {"path": "pages/profile/profile", "style": {"navigationBarTitleText": "我的"}}
+    {"path": "pages/profile/profile", "style": {"navigationBarTitleText": "我的"}},
+    {"path": "pages/budget/center", "style": {"navigationBarTitleText": "预算中心"}},
+    {"path": "pages/subscriptions/list", "style": {"navigationBarTitleText": "订阅管理"}},
+    {"path": "pages/subscriptions/edit", "style": {"navigationBarTitleText": "订阅设置"}}
   ],
   "tabBar": {
     "color": "#A0A4BE",
@@ -22,14 +29,14 @@
     "list": [
       {"pagePath": "pages/index/index", "text": "首页", "iconPath": "static/tabbar/home.png", "selectedIconPath": "static/tabbar/home-active.png"},
       {"pagePath": "pages/bills/list", "text": "账单", "iconPath": "static/tabbar/bill.png", "selectedIconPath": "static/tabbar/bill-active.png"},
-      {"pagePath": "pages/ai/assistant", "text": "AI记账", "iconPath": "static/tabbar/ai.png", "selectedIconPath": "static/tabbar/ai-active.png"},
+      {"pagePath": "pages/agent/agent", "text": "Agent", "iconPath": "static/tabbar/ai.png", "selectedIconPath": "static/tabbar/ai-active.png"},
       {"pagePath": "pages/notes/list", "text": "便签", "iconPath": "static/tabbar/note.png", "selectedIconPath": "static/tabbar/note-active.png"},
       {"pagePath": "pages/profile/profile", "text": "我的", "iconPath": "static/tabbar/profile.png", "selectedIconPath": "static/tabbar/profile-active.png"}
     ]
   },
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "智能记账与生活便签",
+    "navigationBarTitleText": "知账",
     "navigationBarBackgroundColor": "#EAF0FF",
     "backgroundColor": "#F2EEFF"
   }

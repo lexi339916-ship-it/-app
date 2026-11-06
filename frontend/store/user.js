@@ -19,6 +19,11 @@ export function setLogin(token, refreshToken, user) {
   uni.setStorageSync('user', user)
 }
 
+export function setUser(user) {
+  state.user = user
+  uni.setStorageSync('user', user)
+}
+
 export function clearLogin() {
   state.token = ''
   state.refreshToken = ''

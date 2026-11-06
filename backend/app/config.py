@@ -36,5 +36,16 @@ AI_TIMEOUT_SECONDS = _int_env("AI_TIMEOUT_SECONDS", 30)
 # 每用户每日 AI 调用上限，用于控制成本（课程要求：调用成本控制）
 AI_DAILY_LIMIT = _int_env("AI_DAILY_LIMIT", 30)
 
+# 登录失败限流：同一用户名+IP 在窗口内失败次数过多时暂时拒绝，防暴力破解
+LOGIN_MAX_ATTEMPTS = _int_env("LOGIN_MAX_ATTEMPTS", 5)
+LOGIN_WINDOW_MINUTES = _int_env("LOGIN_WINDOW_MINUTES", 15)
+
+# 语音识别：OpenAI 兼容 /audio/transcriptions 接口。
+# 需要单独配置；未配置时语音接口返回 503，前端改用文字。
+ASR_BASE_URL = os.getenv("ASR_BASE_URL", "").rstrip("/")
+ASR_API_KEY = os.getenv("ASR_API_KEY", "")
+ASR_MODEL = os.getenv("ASR_MODEL", "whisper-1")
+ASR_TIMEOUT_SECONDS = _int_env("ASR_TIMEOUT_SECONDS", 60)
+
 # 跨域来源。生产部署应写明前端域名而不是 *
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]

@@ -1,41 +1,43 @@
-# uni-app 前端（完整实现）
+# uni-app 前端
 
 ## 运行
 
-1. 使用 **HBuilderX** 导入本目录（项目为 HBuilderX 标准结构，Vue 3）。
+1. 使用 **HBuilderX** 导入本目录（Vue 3 + `<script setup>`）。
 2. 先启动后端（见 `backend/README.md`），默认地址 `http://127.0.0.1:8000`。
-3. HBuilderX 中选择「运行 → 运行到浏览器」调试 H5；
-   或「运行 → 运行到小程序模拟器 → 微信开发者工具」调试小程序端。
-4. 真机调试时，把 `common/config.js` 中的 `BASE_URL` 改为电脑的局域网 IP。
+3. HBuilderX 中选择「运行 → 运行到浏览器」调试 H5；或使用 `python tools/build_h5.py` 输出到 `deploy/h5`。
+4. 真机调试时，把 `common/config.js` 的 `BASE_URL` 改为电脑局域网 IP，或在“我的 → 服务器地址”里保存。
 
-## 页面结构（10 页 + 5 个 tabBar）
+## 信息架构
 
-| 页面 | 路径 | 说明 |
+| 模块 | 路径 | 说明 |
 | --- | --- | --- |
-| 登录 | pages/login/login | 已登录自动跳转首页 |
-| 注册 | pages/register/register | 用户名 + 密码（≥6位）+ 昵称 |
-| 首页 | pages/index/index | 月度收支总览、预算进度、最近账单、待办摘要、快捷入口 |
-| 账单列表 | pages/bills/list | 月份切换、类型筛选、分页加载、AI 来源标记 |
-| 记一笔 | pages/bills/edit | 支出/收入切换、分类宫格、日期选择、增改删 |
-| AI 助手 | pages/ai/assistant | 一句话记账、便签整理、月度总结三种模式 |
-| 便签列表 | pages/notes/list | 搜索、类型筛选、待办勾选完成 |
-| 便签详情 | pages/notes/edit | 便签/待办切换、截止时间、增改删 |
-| 统计分析 | pages/statistics/statistics | 汇总卡片、每日支出柱状图、分类占比条 |
-| 我的 | pages/profile/profile | 昵称修改、月度预算设置、退出登录 |
+| 登录/注册 | `pages/login`、`pages/register` | 登录态校验、刷新令牌 |
+| 首页 | `pages/index/index` | 收支、消费健康卡、未读消息、最近账单、待办 |
+| Agent | `pages/agent/agent` | 唯一 AI 入口：对话、多轮、审批、撤销、消息、工具抽屉 |
+| 账单 | `pages/bills/list`、`pages/bills/edit` | 列表/日历、手工记账、CSV 导入入口、订阅入口 |
+| 消息中心 | `pages/notifications/notifications` | 聚合预算预警与 Agent 通知，已读/忽略/采纳 |
+| 预算中心 | `pages/budget/center` | 分类预算、AI 方案弹层、调度、计划采购 |
+| 消费健康 | `pages/health/report` | 五项指标、公式、来源、建议 |
+| 决策模拟 | `pages/simulator/simulator` | 购买金额对预算/目标的影响与方案 |
+| CSV 导入 | `pages/import/import` | 粘贴/文件、预览去重、勾选导入 |
+| 目标/订阅 | `pages/goals/goals`、`pages/subscriptions/list` | 储蓄目标、挑战、订阅管理 |
+| 统计 | `pages/statistics/statistics` | 收支、分类、渠道、每日分布 |
+| 我的 | `pages/profile/profile` | 头像上传、消息、预算、目标、订阅、关于/版本 |
 
-## AI 交互状态设计（对应课程要求）
+旧 `pages/ai/assistant`、`pages/budget/plan`、`pages/budget/alerts` 已合并下线，不再保留独立路由。
 
-- 生成中 / 成功 / 失败 / 重试 四态完整；AI 内容统一带「AI 生成」标识
-- 草稿可编辑：类型、金额、分类、日期、备注均可在确认前修改
-- 缺失字段警示（金额/日期/分类待补充），模糊信息不会被自动猜测
-- AI 未配置（503）或超时（504）时提供「手动记账」降级入口
-- 月度总结基于后端真实统计数据生成，前端明确标注「仅供参考」
-- 页面底部展示模型名、提示词版本与耗时（可解释性）
+## Agent 能力
 
-## 技术说明
+- 文本记账/查询/目标/订阅：`/api/agent/run`，写操作必须审批。
+- 多轮对话：`session_id + parent_run_id`，旧审批自动 `superseded`。
+- 工具抽屉：截图记账、任务提取、消费总结；草稿确认后写入，并补预算检查。
+- 头像：`POST /api/auth/avatar`，上传后压缩为 256×256 JPEG，刷新/重新登录仍保留。
+- 消息：`GET /api/notifications/summary|list`，顶部消息按钮与 Agent Tab 角标共享未读数。
 
-- 状态管理：`store/user.js` 基于 Vue3 `reactive` 的轻量单例（token + 用户信息，
-  同步 uni storage）；如需可平滑替换为 Pinia
-- 网络层：`api/request.js` 统一封装 uni.request，自动携带 JWT，
-  401 统一清登录态跳转，错误统一 toast
-- tabBar 图标由 `tools/gen_tabbar_icons.py` 生成，位于 `static/tabbar/`
+## 状态与网络
+
+- `store/user.js`：token + 用户信息 + 头像；`setUser` 统一刷新。
+- `store/notifications.js`：统一未读状态与 TabBar 角标。
+- `api/request.js`：Bearer Token、401 刷新一次、统一错误提示。
+- `api/index.js`：业务 API 封装；上传类接口复用 `uni.uploadFile`。
+- `common/app-info.js`：品牌、版本 2.0.0、能力列表、更新日志。

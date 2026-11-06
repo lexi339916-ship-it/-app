@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import {
   apiGoals, apiAddGoal, apiDepositGoal, apiDeleteGoal,
+  apiGoalDeposits, apiUpdateDeposit, apiDeleteDeposit,
   apiChallenges, apiAddChallenge, apiDeleteChallenge, apiCategories,
 } from '../../api/index.js'
 
@@ -13,6 +14,11 @@ const goalName = ref('')
 const goalTarget = ref('')
 const depositOpenId = ref(null)
 const depositAmount = ref('')
+// 存入记录：recordsOpenId 当前展开记录的目标 id；records 为该目标的存入记录
+const recordsOpenId = ref(null)
+const records = ref([])
+const editRecordId = ref(null)      // 正在修改金额的记录 id
+const editRecordAmount = ref('')    // 修改中的金额输入
 
 // 生活挑战
 const challenges = ref([])
@@ -74,7 +80,71 @@ async function doDeposit(goal) {
     depositAmount.value = ''
     uni.showToast({ title: '已存入', icon: 'success' })
     load()
+    // 记录列表正展开时同步刷新
+    if (recordsOpenId.value === goal.id) loadRecords(goal.id)
   } catch (e) { /* 统一提示 */ }
+}
+
+// ---------------- 存入记录（改/删某一笔） ----------------
+
+/** 展开/收起某目标的存入记录 */
+async function toggleRecords(goal) {
+  if (recordsOpenId.value === goal.id) {
+    recordsOpenId.value = null
+    records.value = []
+    cancelEditRecord()
+    return
+  }
+  recordsOpenId.value = goal.id
+  await loadRecords(goal.id)
+}
+
+async function loadRecords(goalId) {
+  try {
+    records.value = await apiGoalDeposits(goalId)
+  } catch (e) { /* 统一提示 */ }
+}
+
+/** 进入某笔记录的金额编辑态 */
+function startEditRecord(r) {
+  editRecordId.value = r.id
+  editRecordAmount.value = String(Number(r.amount))
+}
+
+function cancelEditRecord() {
+  editRecordId.value = null
+  editRecordAmount.value = ''
+}
+
+/** 保存修改后的金额（已存总额由后端按差额联动） */
+async function saveRecordEdit() {
+  const amount = Number(editRecordAmount.value)
+  if (!amount || amount <= 0) {
+    uni.showToast({ title: '请输入正确金额', icon: 'none' }); return
+  }
+  try {
+    await apiUpdateDeposit(editRecordId.value, amount.toFixed(2))
+    cancelEditRecord()
+    uni.showToast({ title: '已修改', icon: 'success' })
+    load()
+    if (recordsOpenId.value) loadRecords(recordsOpenId.value)
+  } catch (e) { /* 统一提示 */ }
+}
+
+/** 删除某一笔存入记录 */
+function removeRecord(r) {
+  uni.showModal({
+    title: '删除这笔存入',
+    content: `确定删除 ¥${Number(r.amount).toFixed(2)} 这笔吗？已存金额会同步扣减。`,
+    success: async (res) => {
+      if (res.confirm) {
+        await apiDeleteDeposit(r.id)
+        uni.showToast({ title: '已删除', icon: 'success' })
+        load()
+        if (recordsOpenId.value) loadRecords(recordsOpenId.value)
+      }
+    },
+  })
 }
 
 async function removeGoal(g) {
@@ -158,12 +228,35 @@ onShow(load)
         <text v-else class="warn">月均结余为负，先控制支出才能估算完成时间</text>
       </view>
       <view class="deposit-row">
+        <button class="mini-btn ghost" @click="toggleRecords(g)">
+          {{ recordsOpenId === g.id ? '收起记录' : '存入记录' }}
+        </button>
         <button class="mini-btn" @click="toggleDeposit(g.id)">存入一笔</button>
       </view>
       <view v-if="depositOpenId === g.id" class="deposit-form">
         <input class="input deposit-input" type="digit" v-model="depositAmount"
           placeholder="存入金额" placeholder-class="ph" />
         <button class="btn btn-primary deposit-btn" @click="doDeposit(g)">确认存入</button>
+      </view>
+
+      <!-- 存入记录列表：每笔可改金额、可删除 -->
+      <view v-if="recordsOpenId === g.id" class="records">
+        <view v-if="!records.length" class="muted records-empty">
+          还没有存入记录（新功能上线前的存入不逐笔展示）
+        </view>
+        <view v-for="r in records" :key="r.id" class="record-row">
+          <template v-if="editRecordId === r.id">
+            <input class="input record-edit-input" type="digit" v-model="editRecordAmount" focus />
+            <text class="record-op" @click="saveRecordEdit">保存</text>
+            <text class="record-op muted-op" @click="cancelEditRecord">取消</text>
+          </template>
+          <template v-else>
+            <text class="record-amount">¥{{ Number(r.amount).toFixed(2) }}</text>
+            <text class="record-time">{{ String(r.created_at).slice(0, 16).replace('T', ' ') }}</text>
+            <text class="record-op" @click="startEditRecord(r)">改</text>
+            <text class="record-op del-op" @click="removeRecord(r)">删</text>
+          </template>
+        </view>
       </view>
     </view>
 
@@ -252,12 +345,31 @@ onShow(load)
 .over-text { color: #F27E7E; }
 .up-text { color: #F27E7E; }
 .down-text { color: #45C39A; }
-.deposit-row { display: flex; justify-content: flex-end; margin-top: 12rpx; }
+.deposit-row { display: flex; justify-content: flex-end; gap: 16rpx; margin-top: 12rpx; }
 .mini-btn { margin: 0; font-size: 26rpx; color: #6C7BF5; background: #FFFDF8;
   border: 2rpx solid #6C7BF5; border-radius: 34rpx; padding: 0 26rpx; height: 60rpx; line-height: 60rpx; }
+.mini-btn.ghost { color: #8A90A8; border-color: #D9DCE8; }
 .deposit-form { display: flex; gap: 16rpx; margin-top: 14rpx; }
 .deposit-input { flex: 1; }
 .deposit-btn { margin: 0; width: 180rpx; height: 88rpx; font-size: 28rpx; }
+
+/* 存入记录列表 */
+.records { margin-top: 14rpx; background: #FAF9FF; border-radius: 18rpx; padding: 6rpx 20rpx; }
+.records-empty { font-size: 25rpx; padding: 18rpx 0; text-align: center; }
+.record-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #F0EEF8;
+}
+.record-row:last-child { border-bottom: none; }
+.record-amount { font-size: 30rpx; font-weight: 700; color: #6C7BF5; }
+.record-time { flex: 1; font-size: 24rpx; color: #A6AAC2; }
+.record-op { font-size: 26rpx; color: #6C7BF5; padding: 4rpx 10rpx; }
+.record-op.del-op { color: #F27E7E; }
+.record-op.muted-op { color: #A6AAC2; }
+.record-edit-input { flex: 1; height: 64rpx; }
 
 .ch-title-row { display: flex; align-items: center; gap: 14rpx; }
 .ch-name { font-size: 31rpx; font-weight: 700; }

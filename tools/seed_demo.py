@@ -1,0 +1,199 @@
+"""生成/重置比赛演示账号 judge_demo 的数据。
+
+用法（项目根目录）：
+    python tools/seed_demo.py          # 重置并生成演示数据
+    python tools/reset_demo.py         # 只重置后重新生成（同一个入口）
+
+数据全部为合成数据，不包含任何真实用户信息。
+"""
+import calendar
+import os
+import sys
+from datetime import date, datetime, timedelta
+from decimal import Decimal
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+BACKEND = ROOT / "backend"
+if not (BACKEND / "app").exists():
+    BACKEND = ROOT  # Docker 镜像中 app/ 与 tools/ 同级
+sys.path.insert(0, str(BACKEND))
+
+# 必须在导入 app.* 之前指定数据库，避免误写 .env 里的正式库
+if "DATABASE_URL" not in os.environ:
+    default_db = (BACKEND / "smart_life.db").resolve()
+    os.environ["DATABASE_URL"] = f"sqlite:///{default_db.as_posix()}"
+
+from sqlalchemy import select  # noqa: E402
+
+from app.database import Base, SessionLocal, engine  # noqa: E402
+from app.main import _ensure_schema_patches, seed_default_categories  # noqa: E402
+from app.models import (  # noqa: E402
+    AICallLog, AgentApproval, AgentMemory, AgentNotification, AgentRun, AgentStep,
+    Bill, BillCategory, Budget, BudgetAlert, BudgetPlan, CategoryBudget, Challenge,
+    GoalDeposit, Note, SavingsGoal, Subscription, SubscriptionBilling, User,
+)
+from app.security import hash_password  # noqa: E402
+
+DEMO_USERNAME = "judge_demo"
+DEMO_PASSWORD = "judge2026"
+CURRENT_MONTH = date.today().strftime("%Y-%m")
+MONTHS = []
+_today = date.today()
+for offset in range(5, -1, -1):
+    year, month = _today.year, _today.month - offset
+    while month < 1:
+        year, month = year - 1, month + 12
+    MONTHS.append(f"{year:04d}-{month:02d}")
+
+
+def _month_days(month_key: str) -> int:
+    year, month = int(month_key[:4]), int(month_key[5:7])
+    return calendar.monthrange(year, month)[1]
+
+
+def _day(month_key: str, day: int) -> date:
+    year, month = int(month_key[:4]), int(month_key[5:7])
+    # 本月只生成今天及以前的账单，避免未来日期污染“最近账单”
+    if month_key == CURRENT_MONTH:
+        day = min(day, _today.day)
+    return date(year, month, min(day, _month_days(month_key)))
+
+
+def reset_demo(db, user: User) -> None:
+    run_ids = select(AgentRun.id).where(AgentRun.user_id == user.id)
+    db.query(AgentStep).filter(AgentStep.run_id.in_(run_ids)).delete(synchronize_session=False)
+    db.query(AgentApproval).filter(AgentApproval.run_id.in_(run_ids)).delete(synchronize_session=False)
+    db.query(AgentRun).filter(AgentRun.user_id == user.id).delete(synchronize_session=False)
+    db.query(AgentMemory).filter(AgentMemory.user_id == user.id).delete(synchronize_session=False)
+    db.query(AgentNotification).filter(AgentNotification.user_id == user.id).delete(synchronize_session=False)
+    db.query(GoalDeposit).filter(GoalDeposit.user_id == user.id).delete(synchronize_session=False)
+    db.query(Bill).filter(Bill.user_id == user.id).delete(synchronize_session=False)
+    db.query(Note).filter(Note.user_id == user.id).delete(synchronize_session=False)
+    db.query(SavingsGoal).filter(SavingsGoal.user_id == user.id).delete(synchronize_session=False)
+    db.query(Subscription).filter(Subscription.user_id == user.id).delete(synchronize_session=False)
+    db.query(SubscriptionBilling).filter(SubscriptionBilling.user_id == user.id).delete(synchronize_session=False)
+    db.query(CategoryBudget).filter(CategoryBudget.user_id == user.id).delete(synchronize_session=False)
+    db.query(Budget).filter(Budget.user_id == user.id).delete(synchronize_session=False)
+    db.query(BudgetAlert).filter(BudgetAlert.user_id == user.id).delete(synchronize_session=False)
+    db.query(BudgetPlan).filter(BudgetPlan.user_id == user.id).delete(synchronize_session=False)
+    db.query(Challenge).filter(Challenge.user_id == user.id).delete(synchronize_session=False)
+    db.query(AICallLog).filter(AICallLog.user_id == user.id).delete(synchronize_session=False)
+    db.commit()
+
+
+def add_bill(db, user: User, cats: dict[str, int], month: str, day: int,
+             category: str, amount: str, remark: str, type_: str = "expense",
+             source: str = "manual", channel: str = "微信") -> None:
+    db.add(Bill(
+        user_id=user.id, category_id=cats.get(category), type=type_,
+        amount=Decimal(amount), bill_date=_day(month, day), remark=remark,
+        source=source, pay_channel=channel if type_ == "expense" else "",
+        funding_account=""))
+
+
+def seed(db, user: User) -> None:
+    cats = {}
+    for row in db.scalars(select(BillCategory).where(BillCategory.user_id.is_(None))).all():
+        cats.setdefault(row.name, row.id)
+
+    # 近 6 个月：收入 + 固定/日常支出，保证目标规划有真实历史
+    for index, month in enumerate(MONTHS):
+        add_bill(db, user, cats, month, 10, "工资", "9000.00", "每月工资",
+                 type_="income", channel="")
+        add_bill(db, user, cats, month, 1, "住房", "2500.00", "房租", channel="银行卡")
+        add_bill(db, user, cats, month, 6, "交通", "120.00", "地铁公交", channel="支付宝")
+        add_bill(db, user, cats, month, 8, "通讯", "100.00", "手机话费", channel="支付宝")
+        add_bill(db, user, cats, month, 12, "学习", "100.00", "课程/书籍", channel="微信")
+        # 可自由支配支出：近 6 个月逐月略增，给目标规划留出压缩空间
+        food = ["980.00", "1020.00", "1060.00", "1100.00", "1140.00", "1180.00"][index]
+        shopping = ["500.00", "520.00", "540.00", "560.00", "570.00", "580.00"][index]
+        entertainment = ["320.00", "340.00", "360.00", "380.00", "400.00", "420.00"][index]
+        add_bill(db, user, cats, month, 3, "餐饮", food, "日常餐饮", channel="微信")
+        add_bill(db, user, cats, month, 5, "购物", shopping, "日用品与网购", channel="支付宝")
+        add_bill(db, user, cats, month, 7, "娱乐", entertainment, "电影/游戏/会员", channel="微信")
+        add_bill(db, user, cats, month, 9, "其他", "80.00", "杂项", channel="微信")
+        if month != CURRENT_MONTH:
+            add_bill(db, user, cats, month, 4, "餐饮", "60.00", "朋友聚餐", channel="微信")
+            add_bill(db, user, cats, month, 11, "交通", "80.00", "打车", channel="微信")
+
+    # 本月分类预算：餐饮 1180/1200 接近上限，方便演示“记账后超支→调配”
+    budgets = {
+        "餐饮": "1200.00", "交通": "400.00", "购物": "600.00", "娱乐": "500.00",
+        "住房": "2500.00", "学习": "300.00", "医疗": "200.00", "通讯": "100.00",
+        "其他": "200.00",
+    }
+    for name, amount in budgets.items():
+        if name in cats:
+            db.add(CategoryBudget(user_id=user.id, category_id=cats[name],
+                                  month=CURRENT_MONTH, amount=Decimal(amount),
+                                  source="manual"))
+    db.add(Budget(user_id=user.id, month=CURRENT_MONTH, amount=Decimal("6000.00")))
+
+    # 订阅：视频会员涨价 + 低频；健身会员低频；云存储正常
+    video_cat = cats.get("娱乐")
+    cloud_cat = cats.get("通讯")
+    db.add(Subscription(
+        user_id=user.id, name="视频会员", day_of_month=15, amount=Decimal("30.00"),
+        category_id=video_cat, previous_amount=Decimal("25.00"), usage_90d=1,
+        remark="去年 25 元，本月涨到 30 元", remind_enabled=1, status="active",
+        last_billed_month="", remind_month=""))
+    db.add(Subscription(
+        user_id=user.id, name="健身会员", day_of_month=5, amount=Decimal("199.00"),
+        category_id=video_cat, previous_amount=None, usage_90d=0,
+        remark="近 3 个月没去过", remind_enabled=1, status="active",
+        last_billed_month="", remind_month=""))
+    db.add(Subscription(
+        user_id=user.id, name="云存储", day_of_month=20, amount=Decimal("12.00"),
+        category_id=cloud_cat, previous_amount=None, usage_90d=8,
+        remark="每月自动续费", remind_enabled=1, status="active",
+        last_billed_month="", remind_month=""))
+
+    # 本月一条订阅扣费账单（用于订阅体检/统计）
+    add_bill(db, user, cats, CURRENT_MONTH, 2, "娱乐", "30.00",
+             "视频会员 · 自动订阅扣费", source="subscription", channel="微信")
+
+    # 储蓄目标 + 待办
+    db.add(SavingsGoal(user_id=user.id, name="旅行基金",
+                       target_amount=Decimal("3000.00"), saved_amount=Decimal("500.00")))
+    notes = [
+        ("月底复盘视频会员是否恢复", "视频会员涨价了，先暂停一个月，月底按使用情况决定。", 2, "high"),
+        ("买一双跑鞋 600", "计划采购，提前留出预算。", 10, "medium"),
+        ("交下个月房租 2500", "每月固定支出，别忘了。", 5, "high"),
+    ]
+    for title, content, days, priority in notes:
+        db.add(Note(user_id=user.id, title=title, content=content,
+                    note_type="todo", status="open",
+                    due_at=datetime.now() + timedelta(days=days),
+                    priority=priority, pinned=0, color="lilac"))
+
+    db.commit()
+
+
+def main() -> None:
+    Base.metadata.create_all(bind=engine)
+    _ensure_schema_patches()
+    seed_default_categories()
+    db = SessionLocal()
+    try:
+        user = db.scalar(select(User).where(User.username == DEMO_USERNAME))
+        if user is None:
+            user = User(username=DEMO_USERNAME, password_hash=hash_password(DEMO_PASSWORD),
+                        nickname="演示用户")
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        reset_demo(db, user)
+        seed(db, user)
+        bills = db.query(Bill).filter(Bill.user_id == user.id).count()
+        notes_count = db.query(Note).filter(Note.user_id == user.id).count()
+        subs = db.query(Subscription).filter(Subscription.user_id == user.id).count()
+        print(f"演示账号已就绪：{DEMO_USERNAME} / {DEMO_PASSWORD}")
+        print(f"数据：{bills} 笔账单、{notes_count} 条便签/待办、{subs} 个订阅、"
+              f"当前月 {CURRENT_MONTH}")
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    main()

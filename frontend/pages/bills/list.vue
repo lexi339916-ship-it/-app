@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { apiBills, apiMonthlyStats } from '../../api/index.js'
 import { categoryMeta, channelMeta } from '../../common/category-icons.js'
+import { syncSubscriptions } from '../../common/subscription-notify.js'
 
 // 本地日期（避免 toISOString 的 UTC 偏移）
 const todayStr = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
@@ -11,6 +12,7 @@ const todayStr = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
 const viewMode = ref('list')        // list 列表 / calendar 日历
 const month = ref('')
 const typeFilter = ref('')          // '' 全部 / expense / income
+const subCount = ref(0)             // 进行中的订阅数（订阅同步接口返回）
 const pageSize = 20
 
 // 列表视图状态
@@ -180,8 +182,17 @@ function selectDay(cell) {
   loadDayBills()
 }
 
-onShow(() => {
+function goImport() { uni.navigateTo({ url: '/pages/import/import' }) }
+
+function goSubscriptions() {
+  uni.navigateTo({ url: '/pages/subscriptions/list' })
+}
+
+onShow(async () => {
   if (!month.value) month.value = currentMonth()
+  // 先同步订阅（到达扣费日补生成账单），再统一拉一次列表，避免两次请求互相覆盖
+  const res = await syncSubscriptions()
+  if (res) subCount.value = res.active_count || 0
   load(true)
 })
 </script>
@@ -207,6 +218,28 @@ onShow(() => {
       </view>
     </view>
 
+    <!-- CSV 导入入口：账单页作为记录中心 -->
+    <view class="sub-entry import-entry" @click="goImport">
+      <image class="sub-entry-icon" src="/static/icons/act_note.png" mode="widthFix" />
+      <view class="sub-entry-mid">
+        <text class="sub-entry-title">导入 CSV 账单</text>
+        <text class="sub-entry-sub">微信 / 支付宝 / 通用表头 · 预览去重后导入</text>
+      </view>
+      <text class="sub-entry-arrow">导入 ›</text>
+    </view>
+
+    <!-- 订阅管理入口（新增模块，原有记账流程不变） -->
+    <view class="sub-entry" @click="goSubscriptions">
+      <image class="sub-entry-icon" src="/static/icons/act_wallet.png" mode="widthFix" />
+      <view class="sub-entry-mid">
+        <text class="sub-entry-title">自动订阅扣费</text>
+        <text class="sub-entry-sub">
+          {{ subCount ? subCount + ' 项订阅进行中 · 到扣费日自动记账' : '房租、会员等固定支出自动记账' }}
+        </text>
+      </view>
+      <text class="sub-entry-arrow">管理 ›</text>
+    </view>
+
     <!-- ===== 列表视图 ===== -->
     <view class="list" v-if="viewMode === 'list' && items.length">
       <view class="bill-card" v-for="b in items" :key="b.id" @click="goEdit(b.id)">
@@ -227,7 +260,7 @@ onShow(() => {
                 :style="{ color: channelMeta(b.pay_channel).color, background: channelMeta(b.pay_channel).color + '18' }">
                 {{ b.pay_channel }}
               </text>
-              <text class="date">{{ b.bill_date.slice(5) }}<text v-if="b.source === 'ai'" class="ai-tag">AI</text><text v-if="b.source === 'receipt'" class="ai-tag">截图</text></text>
+              <text class="date">{{ b.bill_date.slice(5) }}<text v-if="b.source === 'ai'" class="ai-tag">AI</text><text v-if="b.source === 'receipt'" class="ai-tag">截图</text><text v-if="b.source === 'csv'" class="ai-tag">CSV</text><text v-if="b.source === 'agent'" class="ai-tag">Agent</text><text v-if="b.source === 'subscription'" class="ai-tag sub-tag">订阅</text></text>
             </view>
           </view>
         </view>
@@ -300,8 +333,8 @@ onShow(() => {
                     :style="{ color: channelMeta(b.pay_channel).color, background: channelMeta(b.pay_channel).color + '18' }">
                     {{ b.pay_channel }}
                   </text>
-                  <text class="date" v-if="b.source === 'ai' || b.source === 'receipt'">
-                    <text class="ai-tag">{{ b.source === 'receipt' ? '截图' : 'AI' }}</text>
+                  <text class="date" v-if="b.source === 'ai' || b.source === 'receipt' || b.source === 'subscription'">
+                    <text class="ai-tag" :class="{ 'sub-tag': b.source === 'subscription' }">{{ b.source === 'receipt' ? '截图' : (b.source === 'subscription' ? '订阅' : (b.source === 'csv' ? 'CSV' : (b.source === 'agent' ? 'Agent' : 'AI'))) }}</text>
                   </text>
                 </view>
               </view>
@@ -333,6 +366,18 @@ onShow(() => {
 .tab { font-size: 28rpx; color: #8A90A8; padding: 8rpx 30rpx; border-radius: 30rpx; background: #F6F4FB; }
 .tab-active { color: #fff; background: #6C7BF5; font-weight: 600; }
 
+/* 订阅管理入口 */
+.sub-entry { display: flex; align-items: center; gap: 16rpx; margin: 14rpx 24rpx 0;
+  padding: 20rpx 24rpx; background: #FFFDF8; border-radius: 24rpx;
+  box-shadow: 0 6rpx 24rpx rgba(124, 139, 255, .10); }
+.sub-entry:active { opacity: .85; }
+.sub-entry-icon { width: 56rpx; height: 56rpx; flex-shrink: 0; }
+.sub-entry-mid { flex: 1; min-width: 0; }
+.sub-entry-title { display: block; font-size: 29rpx; font-weight: 700; color: #3A3F58; }
+.sub-entry-sub { display: block; font-size: 23rpx; color: #A6AAC2; margin-top: 4rpx;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub-entry-arrow { flex-shrink: 0; font-size: 25rpx; color: #6C7BF5; font-weight: 600; }
+
 /* ===== 列表 ===== */
 .list { margin-top: 16rpx; }
 .bill-card { display: flex; align-items: center; background: #FFFDF8; margin: 14rpx 24rpx;
@@ -354,6 +399,7 @@ onShow(() => {
 .channel-tag { font-size: 23rpx; padding: 2rpx 12rpx; border-radius: 8rpx; font-weight: 600; }
 .ai-tag { margin-left: 10rpx; background: #EFF1FF; color: #6C7BF5; border-radius: 8rpx;
   padding: 2rpx 10rpx; font-size: 23rpx; font-weight: 600; }
+.sub-tag { background: #FFF3E0; color: #C7772B; }
 .amount { font-size: 34rpx; font-weight: 800; }
 .amount-in { color: #1FA97F; } .amount-out { color: #E45858; }
 .load-more { text-align: center; color: #8A90A8; font-size: 26rpx; padding: 24rpx; }

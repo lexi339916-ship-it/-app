@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { apiLogin, apiMe } from '../../api/index.js'
-import { setLogin, isLogged, clearLogin } from '../../store/user.js'
+import { setLogin, setUser, isLogged, clearLogin } from '../../store/user.js'
 import { BASE_URL } from '../../common/config.js'
 
 const username = ref('')
@@ -26,7 +26,8 @@ function saveApiBase() {
 async function checkLogin() {
   if (!isLogged()) return
   try {
-    await apiMe()
+    const user = await apiMe()
+    setUser(user)
     uni.switchTab({ url: '/pages/index/index' })
   } catch (e) {
     clearLogin()

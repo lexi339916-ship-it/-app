@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { apiMonthlyStats, apiCategoryStats, apiBudget, apiChannelStats } from '../../api/index.js'
+import { apiMonthlyStats, apiCategoryStats, apiChannelStats } from '../../api/index.js'
 import { categoryMeta, channelMeta } from '../../common/category-icons.js'
 
 const month = ref('')
@@ -10,7 +10,6 @@ const catStats = ref([])
 const catTotal = ref('0')
 const channelStats = ref([])
 const channelTotal = ref('0')
-const budget = ref(null)
 const statType = ref('expense')
 const loading = ref(false)
 
@@ -28,16 +27,14 @@ function shiftMonth(m, delta) {
 async function load() {
   loading.value = true
   try {
-    const [s, c, b, ch] = await Promise.all([
+    const [s, c, ch] = await Promise.all([
       apiMonthlyStats(month.value),
       apiCategoryStats(month.value, statType.value),
-      apiBudget(month.value).catch(() => null),
       apiChannelStats(month.value, 'expense').catch(() => null),
     ])
     stats.value = s
     catStats.value = c.items
     catTotal.value = c.total
-    budget.value = b
     channelStats.value = ch ? ch.items : []
     channelTotal.value = ch ? ch.total : 0
   } catch (e) { /* 统一提示 */ } finally { loading.value = false }
@@ -110,19 +107,6 @@ onShow(() => {
       <view class="sum-card c-orange">
         <text class="sum-num">¥{{ Number(stats.net).toFixed(2) }}</text>
         <text class="sum-label">结余</text>
-      </view>
-    </view>
-
-    <!-- 预算 -->
-    <view class="card" v-if="budget && Number(budget.amount) > 0">
-      <view class="row-between">
-        <text class="block-title">预算使用</text>
-        <text class="muted">¥{{ Number(budget.spent).toFixed(2) }} / ¥{{ Number(budget.amount).toFixed(2) }}</text>
-      </view>
-      <view class="bar-track">
-        <view class="bar-fill"
-          :style="{ width: Math.min(budget.usage_ratio * 100, 100) + '%',
-                    background: budget.usage_ratio > 0.9 ? '#F27E7E' : '#6C7BF5' }" />
       </view>
     </view>
 

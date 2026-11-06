@@ -7,6 +7,7 @@
 """
 import os
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
@@ -31,6 +32,7 @@ seed_default_categories()
 
 client = TestClient(app)
 PASSED = 0
+FUTURE_DUE = (date.today() + timedelta(days=30)).strftime("%Y-%m-%d 09:00:00")
 
 
 def check(name: str, cond: bool, detail: str = ""):
@@ -66,6 +68,16 @@ H_B = {"Authorization": f"Bearer {token_b}"}
 
 r = client.post("/api/auth/login", json={"username": "student_a", "password": "wrong!"})
 check("错误密码登录被拒绝(400)", r.status_code == 400, r.text)
+
+# 登录失败限流：同一用户名+IP 连续失败达到阈值后返回 429
+for _ in range(config.LOGIN_MAX_ATTEMPTS):
+    r = client.post("/api/auth/login", json={
+        "username": "rate_limit_probe", "password": "wrong!"})
+check("阈值内仍返回 400", r.status_code == 400, r.text)
+r = client.post("/api/auth/login", json={
+    "username": "rate_limit_probe", "password": "wrong!"})
+check("超过阈值返回 429", r.status_code == 429, r.text)
+check("限流提示可读", "登录失败次数过多" in r.json().get("message", ""), r.text)
 
 r = client.get("/api/bills")
 check("未登录访问账单(401)", r.status_code == 401, r.text)
@@ -168,7 +180,7 @@ check("今天视图包含逾期任务", any(x["id"] == task_id for x in r.json()
 
 r = client.post("/api/notes", headers=H_A, json={
     "title": "下周计划", "content": "", "note_type": "todo",
-    "status": "open", "due_at": "2026-12-01 09:00:00", "priority": "low"})
+    "status": "open", "due_at": FUTURE_DUE, "priority": "low"})
 future_id = r.json()["id"]
 r = client.get("/api/notes", headers=H_A, params={"view": "upcoming"})
 check("近期视图包含未来任务", any(x["id"] == future_id for x in r.json()["items"]))
@@ -176,7 +188,7 @@ check("近期视图不含今天/逾期任务", all(x["id"] != task_id for x in r
 
 r = client.put(f"/api/notes/{future_id}", headers=H_A, json={
     "title": "下周计划", "content": "", "note_type": "todo",
-    "status": "done", "due_at": "2026-12-01 09:00:00", "priority": "low"})
+    "status": "done", "due_at": FUTURE_DUE, "priority": "low"})
 check("完成未来任务", r.status_code == 200 and r.json()["status"] == "done", r.text)
 r = client.get("/api/notes", headers=H_A, params={"view": "done"})
 check("已完成视图包含该任务", any(x["id"] == future_id for x in r.json()["items"]))

@@ -1,17 +1,18 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
-import { apiMonthlyStats, apiBudget, apiBills, apiNotes, apiInsight } from '../../api/index.js'
+import { apiMonthlyStats, apiBills, apiNotes, apiInsight, apiParseReceipt, apiHealthReport } from '../../api/index.js'
 import { categoryMeta } from '../../common/category-icons.js'
+import { syncSubscriptions } from '../../common/subscription-notify.js'
 import store from '../../store/user.js'
 
 const month = ref('')
 const stats = ref({ income: '0', expense: '0', net: '0', count: 0, days: [] })
-const budget = ref(null)
 const recentBills = ref([])
 const todos = ref([])
 const pendingCount = ref(0)
 const todayDueCount = ref(0)
+const health = ref(null)
 
 // AI 洞察卡状态
 const insightText = ref('')
@@ -38,6 +39,17 @@ const greeting = computed(() => {
 
 const netColor = computed(() =>
   (Number(stats.value.net) >= 0 ? '#1F9D74' : '#DE4F4F'))
+
+const healthScore = computed(() => {
+  const value = health.value?.overall_score
+  return value === null || value === undefined ? '—' : Number(value).toFixed(1)
+})
+const healthTop = computed(() => (health.value?.recommendations || [])[0] || null)
+
+function pct(value) {
+  if (value === null || value === undefined) return '—'
+  return Math.round(Number(value) * 100)
+}
 
 function currentMonth() {
   const d = new Date()
@@ -84,15 +96,15 @@ async function loadInsight(refresh = false) {
 async function loadAll() {
   if (!store.token) return
   try {
-    const [s, b, bills, notes, todayNotes] = await Promise.all([
+    const [s, bills, notes, todayNotes, h] = await Promise.all([
       apiMonthlyStats(month.value),
-      apiBudget(month.value).catch(() => null),
       apiBills({ month: month.value, page: 1, page_size: 5 }),
       apiNotes({ note_type: 'todo', status: 'open', page: 1, page_size: 3 }),
       apiNotes({ view: 'today', page: 1, page_size: 1 }),
+      apiHealthReport(month.value).catch(() => null),
     ])
     stats.value = s
-    budget.value = b
+    health.value = h
     recentBills.value = bills.items
     todos.value = notes.items
     pendingCount.value = notes.total
@@ -100,8 +112,47 @@ async function loadAll() {
   } catch (e) { /* 统一提示已处理 */ }
 }
 
+
+function goHealth() {
+  uni.navigateTo({ url: '/pages/health/report?month=' + month.value })
+}
+
 function prevMonth() { month.value = shiftMonth(month.value, -1); loadAll() }
 function nextMonth() { month.value = shiftMonth(month.value, 1); loadAll() }
+
+// ---------- 截图记账：选图 → OCR 识别 → 预填记账表单 ----------
+const shooting = ref(false)
+
+function shootReceipt() {
+  if (shooting.value) return
+  shooting.value = true
+  uni.chooseImage({
+    count: 1,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'], // 相机拍摄或相册选择小票/支付截图
+    success: async (res) => {
+      const path = res.tempFilePaths && res.tempFilePaths[0]
+      if (!path) { shooting.value = false; return }
+      uni.showLoading({ title: '识别中…', mask: true })
+      try {
+        const data = await apiParseReceipt(path)
+        if (!data.found || !data.drafts || !data.drafts.length) {
+          uni.showToast({ title: data.notice || '未识别到支付信息', icon: 'none', duration: 2500 })
+          return
+        }
+        // 截图草稿统一进 Agent 工具抽屉确认，不再跳到独立 AI 助手页
+        uni.setStorageSync('agent_pending_receipt', JSON.stringify(data.drafts))
+        uni.showToast({ title: `识别到 ${data.drafts.length} 笔，请在 Agent 确认`, icon: 'none', duration: 2200 })
+        setTimeout(() => uni.switchTab({ url: '/pages/agent/agent' }), 500)
+      } catch (e) { /* 识别失败由请求层统一提示 */ }
+      finally {
+        uni.hideLoading()
+        shooting.value = false
+      }
+    },
+    fail: () => { shooting.value = false },
+  })
+}
 
 onShow(() => {
   if (!store.token) {
@@ -111,6 +162,14 @@ onShow(() => {
   if (!month.value) month.value = currentMonth()
   loadAll()
   loadInsight(false)
+  // 订阅扣费：到达扣费日自动生成账单；扣费前 1 天弹窗提醒
+  syncSubscriptions().then((res) => {
+    // 自动生成了新账单，刷新首页统计
+    if (res && res.created_count > 0) {
+      loadAll()
+      loadInsight(false)
+    }
+  })
 })
 
 onPullDownRefresh(() => {
@@ -161,8 +220,8 @@ onPullDownRefresh(() => {
       </view>
     </view>
 
-    <!-- 截图记账入口（突出） -->
-    <view class="shoot-card" @click="uni.switchTab({ url: '/pages/ai/assistant' })">
+    <!-- 截图记账入口（突出）：唤起相机/相册 → OCR 识别 → 预填记账表单 -->
+    <view class="shoot-card" @click="shootReceipt">
       <view class="shoot-icon">
         <image class="shoot-img" src="/static/icons/act_camera.png" mode="widthFix" />
       </view>
@@ -188,23 +247,36 @@ onPullDownRefresh(() => {
       <text v-if="insightNotice" class="insight-notice">{{ insightNotice }}</text>
     </view>
 
-    <!-- 预算使用 -->
-    <view class="card" v-if="budget && Number(budget.amount) > 0">
+    <!-- 消费健康概览（点击进入完整诊断） -->
+    <view class="card health-card" v-if="health" @click="goHealth">
       <view class="row-between">
-        <text class="budget-title">本月预算</text>
-        <text class="budget-nums">
-          ¥{{ Number(budget.spent).toFixed(2) }} / ¥{{ Number(budget.amount).toFixed(2) }}
-        </text>
+        <view class="health-head-left">
+          <text class="budget-title">消费健康</text>
+          <text class="health-level">{{ health.overall_level }}</text>
+        </view>
+        <text class="agent-unread">完整诊断 ›</text>
       </view>
-      <view class="bar-track">
-        <view class="bar-fill"
-          :style="{ width: Math.min(budget.usage_ratio * 100, 100) + '%',
-                    background: budget.usage_ratio > 0.9 ? '#F27E7E' : 'linear-gradient(90deg,#7C8BFF,#A78BFA)' }" />
+      <view class="health-body">
+        <view class="health-score-box">
+          <text class="health-score">{{ healthScore }}</text>
+          <text class="health-score-label">健康分</text>
+        </view>
+        <view class="health-main">
+          <text class="health-summary">{{ health.summary }}</text>
+          <view class="health-tags">
+            <text class="health-tag" v-if="health.budget.available">
+              预算 {{ pct(health.budget.usage_ratio) }}%
+            </text>
+            <text class="health-tag">指标覆盖 {{ pct(health.coverage) }}%</text>
+          </view>
+        </view>
       </view>
-      <text class="budget-hint">
-        {{ budget.usage_ratio >= 1 ? '预算已超支，注意控制支出' : `已使用 ${Math.round(budget.usage_ratio * 100)}%` }}
-      </text>
+      <view class="health-tip" v-if="healthTop">
+        <text>优先建议：{{ healthTop.title }}</text>
+      </view>
     </view>
+
+    <!-- 旧整月预算卡已下线：预算统一在预算中心按分类管理 -->
 
     <!-- 快捷入口 -->
     <view class="quick">
@@ -214,11 +286,11 @@ onPullDownRefresh(() => {
         </view>
         <text>记一笔</text>
       </view>
-      <view class="quick-item" @click="uni.switchTab({ url: '/pages/ai/assistant' })">
+      <view class="quick-item" @click="uni.switchTab({ url: '/pages/agent/agent' })">
         <view class="quick-icon q-green">
           <image class="quick-img" src="/static/icons/act_sparkle.png" mode="widthFix" />
         </view>
-        <text>AI 记账</text>
+        <text>Agent</text>
       </view>
       <view class="quick-item" @click="uni.navigateTo({ url: '/pages/notes/edit' })">
         <view class="quick-icon q-orange">
@@ -290,6 +362,7 @@ onPullDownRefresh(() => {
 .header-left { display: flex; flex-direction: column; gap: 6rpx; padding-top: 12rpx; }
 .date-text { font-size: 26rpx; color: #8A90A8; letter-spacing: 1rpx; }
 .header-deco { font-size: 26rpx; color: #C7B7F7; letter-spacing: 8rpx; }
+.header-actions { display: flex; align-items: center; gap: 14rpx; }
 .header-cat { width: 136rpx; height: 110rpx; margin-top: -12rpx; }
 .header .page-title { margin: 10rpx 0 2rpx; }
 .title-underline { display: block; width: 224rpx; height: 26rpx; margin: 0 0 8rpx 4rpx; opacity: .75; }
@@ -363,6 +436,33 @@ onPullDownRefresh(() => {
 .bar-track { height: 16rpx; background: #EFEDF7; border-radius: 8rpx; margin: 20rpx 0 12rpx; overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 8rpx; transition: width .3s; }
 .budget-hint { font-size: 25rpx; color: #8A90A8; }
+.health-card { border: 2rpx solid #E4E7FB; }
+.health-head-left { display: flex; align-items: center; gap: 12rpx; }
+.health-level { font-size: 21rpx; font-weight: 700; color: #6C7BF5; background: #EFF1FF;
+  border-radius: 999rpx; padding: 4rpx 14rpx; }
+.health-body { display: flex; align-items: center; gap: 20rpx; margin-top: 18rpx; }
+.health-score-box { width: 132rpx; height: 132rpx; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(160deg, #F0EDFF 0%, #E4E0FA 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 2rpx solid #D9D3F5; }
+.health-score { font-size: 42rpx; font-weight: 800; color: #5A54B8; line-height: 1.1; }
+.health-score-label { font-size: 19rpx; color: #8A90A8; margin-top: 2rpx; }
+.health-main { flex: 1; min-width: 0; }
+.health-summary { display: block; font-size: 24rpx; color: #4A4F6B; line-height: 1.65; }
+.health-tags { display: flex; flex-wrap: wrap; gap: 10rpx; margin-top: 10rpx; }
+.health-tag { font-size: 20rpx; color: #6C7BF5; background: #F2F1FF;
+  border-radius: 999rpx; padding: 4rpx 12rpx; }
+.health-tip { margin-top: 14rpx; background: #FFFAF0; border-radius: 14rpx;
+  padding: 12rpx 16rpx; font-size: 22rpx; color: #A56A1F; line-height: 1.6; }
+.agent-tip-card { border: 2rpx solid #E4E7FB; }
+.agent-unread { font-size: 23rpx; color: #6C7BF5; }
+.agent-tip { display: flex; align-items: flex-start; gap: 12rpx; margin-top: 14rpx; }
+.agent-dot { width: 12rpx; height: 12rpx; border-radius: 50%; background: #6C7BF5;
+  margin-top: 10rpx; flex-shrink: 0; }
+.agent-critical { background: #E45858; }
+.agent-warn { background: #F2A93B; }
+.agent-tip-text { flex: 1; font-size: 24rpx; color: #5A5F78; line-height: 1.6;
+  word-break: break-word; }
 
 /* 快捷入口 */
 .quick { display: flex; gap: 14rpx; margin: 20rpx 24rpx 0; }

@@ -443,10 +443,10 @@ _INSIGHT_CACHE: dict[int, tuple[str, str]] = {}
 
 def _shift_month(month: str, delta: int) -> str:
     year, mon = int(month[:4]), int(month[5:7]) + delta
-    if mon < 1:
-        year, mon = year - 1, 12
-    elif mon > 12:
-        year, mon = year + 1, 1
+    while mon < 1:
+        year, mon = year - 1, mon + 12
+    while mon > 12:
+        year, mon = year + 1, mon - 12
     return f"{year:04d}-{mon:02d}"
 
 

@@ -1,9 +1,9 @@
 {
-    "name" : "智能记账与生活便签",
+    "name" : "知账",
     "appid" : "__UNI__0B30CB8",
-    "description" : "基于 uni-app 的智能记账与生活便签一体化管理系统",
-    "versionName" : "1.0.0",
-    "versionCode" : "100",
+    "description" : "知账 · 家庭消费健康 Agent：记账、预算、订阅、目标与可审批的 AI 行动",
+    "versionName" : "2.0.0",
+    "versionCode" : "200",
     "vueVersion" : "3",
     "transformPx" : false,
     "app-plus" : {
@@ -78,7 +78,7 @@
         "usingComponents" : true
     },
     "h5" : {
-        "title" : "智能记账与生活便签",
+        "title" : "知账 · 家庭消费健康 Agent",
         "router" : {
             "mode" : "hash"
         },

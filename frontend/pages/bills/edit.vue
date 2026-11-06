@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { apiBill, apiAddBill, apiUpdateBill, apiDeleteBill, apiCategories } from '../../api/index.js'
+import { apiBill, apiAddBill, apiUpdateBill, apiDeleteBill, apiCategories, apiBillCheck, apiAlertAction } from '../../api/index.js'
 import { categoryMeta } from '../../common/category-icons.js'
+import BudgetAlertPopup from '../../components/budget-alert-popup.vue'
 
 const editId = ref(null)
 const type = ref('expense')
@@ -14,6 +15,11 @@ const payChannel = ref('')
 const fundingAccount = ref('')
 const categories = ref([])
 const saving = ref(false)
+// OCR 截图识别进入：保存时 source 标记为 receipt（截图草稿统一进 Agent 工具抽屉）
+const fromReceipt = ref(false)
+const originalSource = ref('manual')
+// 预算预警：记账成功后触发的预警队列（非空时弹窗逐条展示）
+const pendingAlerts = ref([])
 const CHANNELS = ['微信支付', '支付宝', '银行卡', '云闪付', '现金', '其他']
 // 取本地日期（toISOString 会按 UTC 计算，凌晨时段会差一天）
 const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
@@ -45,6 +51,7 @@ async function loadBill(id) {
   remark.value = b.remark
   payChannel.value = b.pay_channel || ''
   fundingAccount.value = b.funding_account || ''
+  originalSource.value = b.source || 'manual'
 }
 
 async function save() {
@@ -63,19 +70,31 @@ async function save() {
     category: category.value,
     bill_date: billDate.value,
     remark: remark.value,
-    source: 'manual',
+    source: fromReceipt.value ? 'receipt' : (editId.value ? originalSource.value : 'manual'),
     pay_channel: payChannel.value,
     funding_account: fundingAccount.value,
   }
   saving.value = true
   try {
+    let billId
     if (editId.value) {
       await apiUpdateBill(editId.value, payload)
+      billId = editId.value
       uni.showToast({ title: '修改成功', icon: 'success' })
     } else {
-      await apiAddBill(payload)
+      const newBill = await apiAddBill(payload)
+      billId = newBill.id
       uni.showToast({ title: '记账成功', icon: 'success' })
     }
+    // 预算预警（新增模块，仅追加）：无论新增还是编辑，保存成功后都检查
+    // 80%/100%/异常大额预警，命中则弹窗展示，用户看完再返回；检查失败静默
+    try {
+      const chk = await apiBillCheck(billId)
+      if (chk && chk.alerts && chk.alerts.length) {
+        pendingAlerts.value = chk.alerts
+        return
+      }
+    } catch (e) { /* 预警检查失败静默，绝不影响记账流程 */ }
     setTimeout(() => uni.navigateBack(), 700)
   } catch (e) { /* 统一提示 */ } finally { saving.value = false }
 }
@@ -94,6 +113,14 @@ function removeBill() {
   })
 }
 
+/** 预警弹窗全部看完：清空队列并返回账单列表 */
+function onAlertsClosed() {
+  // 弹窗里看过的预警标记已读，避免之后进首页时再弹一次同一条
+  pendingAlerts.value.forEach(a => apiAlertAction(a.id, 'read').catch(() => {}))
+  pendingAlerts.value = []
+  uni.navigateBack()
+}
+
 onLoad(async (options) => {
   billDate.value = today
   // 支持从日历"为这天记一笔"进入：?date=YYYY-MM-DD 预填日期
@@ -105,6 +132,19 @@ onLoad(async (options) => {
     editId.value = Number(options.id)
     uni.setNavigationBarTitle({ title: '编辑账单' })
     await loadBill(editId.value)
+  } else if (options && options.from === 'receipt') {
+    // 首页"拍张截图自动记账"：OCR 草稿预填，用户确认后再保存
+    fromReceipt.value = true
+    if (options.type === 'income' || options.type === 'expense') type.value = options.type
+    if (options.amount && Number(options.amount) > 0) amount.value = String(Number(options.amount))
+    if (options.bill_date && /^\d{4}-\d{2}-\d{2}$/.test(options.bill_date)) billDate.value = options.bill_date
+    if (options.category
+        && categories.value.some(c => c.name === options.category && c.type === type.value)) {
+      category.value = options.category
+    }
+    if (options.remark) remark.value = options.remark
+    if (options.pay_channel && CHANNELS.includes(options.pay_channel)) payChannel.value = options.pay_channel
+    if (options.funding_account) fundingAccount.value = options.funding_account
   }
 })
 </script>
@@ -168,6 +208,9 @@ onLoad(async (options) => {
       </button>
       <button class="btn btn-danger" v-if="editId" @click="removeBill">删除账单</button>
     </view>
+
+    <!-- 预算预警弹窗（新增模块）：记账触发预警时逐条展示，看完后返回上一页 -->
+    <budget-alert-popup :alerts="pendingAlerts" @close="onAlertsClosed" />
   </view>
 </template>
 

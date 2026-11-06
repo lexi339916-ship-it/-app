@@ -1,67 +1,96 @@
-# 基于 uni-app 的智能记账与生活便签一体化管理系统
+# 知账 · 家庭消费健康 Agent
 
-课程设计交付包（可运行完整版）。前端 uni-app（Vue 3），后端 FastAPI + SQLAlchemy，
-数据库 MySQL（开发模式可用 SQLite 直接运行），AI 能力通过 OpenAI 兼容 API 接入。
+> 从记一笔，到做对下一步。
 
-## 目录结构
+知账是一个面向个人与两人小家庭的消费健康智能体：把散落在微信、支付宝、银行卡、截图、CSV 和待办里的消费信息，变成可解释的预算计划、可审批的行动和可复盘的改进。
 
-```
-smart_life_coursework/
-├── frontend/               # uni-app 前端（HBuilderX 项目，10 个页面 + tabBar）
-├── backend/                # FastAPI 后端（认证/账单/便签/预算/统计/AI 七组接口）
-├── database/schema.sql     # MySQL 8 初始化脚本（含种子分类）
-├── tests/
-│   ├── ai_test_cases.xlsx      # AI 测试集模板（20 条）
-│   ├── run_ai_tests.py         # AI 测试集自动执行脚本
-│   └── smoke_test.py           # 后端接口冒烟测试（41 项断言）
-├── tools/gen_tabbar_icons.py   # 生成 tabBar 图标
-├── diagrams/ docs/             # 设计图（架构/模块/用例/E-R/流程/原型）
-└── 课程设计报告_初稿.docx
-```
+当前版本：**v2.0.0**
+
+## 核心能力
+
+- **感知**：自然语言、支付截图/小票、CSV、订阅、待办、语音输入（需配置 ASR）。
+- **记忆**：消费偏好、目标、商户→分类纠正、历史决策。
+- **规划**：把“3 个月存 3000”拆成月度预算、储蓄目标和每周复盘任务。
+- **行动**：读写工具分离；写操作先出 diff，用户批准后才执行。
+- **反思**：执行后回查数据库；偏离时重规划；支持撤销。
+- **主动**：预算超支、订阅涨价/低频、目标延期、消费变化、异常大额、计划采购。
+- **可解释**：数字来自 SQL/工具，带来源、公式、`as_of`；不展示模型原始思维链。
+
+## 三个英雄场景
+
+1. 一句话/截图记账 → 预算冲击 → 审批 → 执行 → 撤销。
+2. 订阅体检 → 拒绝原方案 → 替代方案 → 审批。
+3. 目标规划 → 预算/任务 → 执行 → 周复盘。
+
+## 技术栈
+
+- 后端：Python 3.10+、FastAPI、SQLAlchemy 2、Pydantic 2、SQLite（开发）/ MySQL 8（生产）。
+- 前端：uni-app、Vue 3 `<script setup>`、H5/App。
+- AI：OpenAI 兼容接口；账单解析优先模型，失败/未配置自动降级为规则；预算、目标、订阅、健康、模拟全部由后端计算。
 
 ## 快速开始
 
-1. **启动后端**（Python 3.10+）：
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   # 开发模式无需安装数据库，默认使用 SQLite
-   uvicorn app.main:app --reload --port 8000
-   ```
-   浏览器打开 http://127.0.0.1:8000/docs 可查看自动生成的接口文档。
-
-2. **启动前端**：用 HBuilderX 导入 `frontend/` 目录，运行到浏览器（H5）或微信开发者工具。
-   后端地址在 `frontend/common/config.js` 中配置；App 真机调试时可在
-   **登录页 → 服务器设置** 或 **我的 → 服务器地址** 中填写电脑局域网地址，
-   详见 [docs/APK打包说明.md](docs/APK打包说明.md)。
-
-3. **启用 AI 功能**（可选，不配置时系统降级为纯手动记账/便签）：
-   ```bash
-   cd backend
-   copy .env.example .env     # 编辑 .env，填入 AI_BASE_URL / AI_API_KEY / AI_MODEL
-   ```
-   支持任何 OpenAI 兼容接口（智谱 GLM、通义千问、DeepSeek 等）。
-
-## 正式部署（MySQL）
-
 ```bash
-mysql -u root -p < database/schema.sql
-# 修改 backend/.env：
-# DATABASE_URL=mysql+pymysql://user:password@127.0.0.1:3306/smart_life
+# 后端
+cd backend
+pip install -r requirements.txt
+cp .env.example .env       # 填写 AI_BASE_URL / AI_API_KEY / AI_MODEL / JWT_SECRET
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# 前端 H5（同源代理，静态 + /api 反代）
+cd ..
+python deploy/proxy_server.py --port 8080 --backend http://127.0.0.1:8000
 ```
 
-## 测试与验收材料
+访问 `http://127.0.0.1:8080`，演示账号：
 
-- 接口冒烟测试：`python tests/smoke_test.py`（覆盖认证、账单、便签、预算、统计、
-  AI 降级/限流/脱敏/草稿校验、用户隔离，共 41 项断言，无需配置 AI）
-- AI 专项测试：启动后端并配置 AI 后运行 `python tests/run_ai_tests.py`，
-  自动执行 20 条用例并生成 `tests/AI测试用例_实测结果.xlsx`
-  （已完成一轮实测：模型 glm-4-flash，20/20 通过，结果表内含每条用例的实际输出）
-- AI 配置自检：`python tests/verify_ai.py`（登录测试账号并调用一次真实解析）
+- 用户名：`judge_demo`
+- 密码：`judge2026`
 
-## 安全约定
+重置演示数据：
 
-- 模型密钥只存于后端 `.env`，不进前端、不进仓库、不进截图与报告
-- 密码使用 PBKDF2-SHA256（24 万轮 + 随机盐）哈希存储，接口使用 JWT 鉴权
-- 所有账单/便签接口按 user_id 隔离，跨用户访问返回 404
-- AI 只生成草稿，必须用户确认后才写入数据库；备注中的疑似敏感数字自动脱敏
+```bash
+python tools/seed_demo.py
+```
+
+## 目录结构
+
+```text
+backend/            FastAPI 后端（Agent、账单、预算、目标、订阅、健康、模拟、CSV、通知）
+frontend/           uni-app 前端（首页、Agent、消息、预算、健康、模拟、导入、我的）
+database/schema.sql MySQL 8 初始化脚本
+deploy/             Docker/Nginx/同源代理/公网验收脚本
+tests/              冒烟、Agent、健康、通知、头像、CSV、评测
+docs/competition/   评测报告、审查记录、比赛材料
+tools/              演示数据、H5 构建、交付检查、PPT 构建
+```
+
+## 测试
+
+```bash
+python tests/smoke_test.py
+python tests/agent_smoke.py
+python tests/agent_eval/run_flow_eval.py
+python tests/agent_eval/run_eval.py --split all
+python tests/health_report_test.py
+python tests/notifications_test.py
+python tests/avatar_test.py
+python tests/csv_import_test.py
+```
+
+评测报告：`tests/agent_eval/report.md`、`report_test.md`、`flow_report.md`、`multi_turn_report.md`、`decision_simulator_report.md`、`csv_import_report.md`。
+
+## 安全边界
+
+- 不使用真实银行/支付宝/微信账号，演示数据为合成数据。
+- 不做自动转账、投资建议、代客理财。
+- 写操作必须审批；审批幂等；执行后回查；支持撤销与审计。
+- 敏感文本脱敏；语音/截图不在服务端长期保存。
+- `.env`、数据库、`node_modules`、构建缓存不进入仓库。
+
+## 已知限制
+
+- 通知为两套源表（预算预警 + Agent 通知）的聚合读模型，物理单表迁移尚未做。
+- 语音真实 ASR/麦克风链路需外部配置与真机验证。
+- 消费决策模拟基于历史结余估算，不代表账户真实余额。
+- CSV 覆盖常见微信/支付宝/通用表格，特殊银行格式未覆盖。

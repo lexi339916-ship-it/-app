@@ -120,6 +120,7 @@ def update_bill(bill_id: int, data: BillIn, user: User = Depends(get_current_use
     row.bill_date = data.bill_date
     row.remark = data.remark
     row.category_id = cat.id
+    row.source = data.source
     row.pay_channel = data.pay_channel
     row.funding_account = data.funding_account
     db.commit()

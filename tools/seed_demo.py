@@ -6,12 +6,16 @@
 
 数据全部为合成数据，不包含任何真实用户信息。
 """
+import base64
 import calendar
+import io
 import os
 import sys
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+
+from PIL import Image, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
@@ -53,6 +57,31 @@ for offset in range(5, -1, -1):
 def _month_days(month_key: str) -> int:
     year, month = int(month_key[:4]), int(month_key[5:7])
     return calendar.monthrange(year, month)[1]
+
+
+def _demo_photo(name: str) -> str:
+    """把前端手绘素材压成演示照片 data URL；素材缺失时返回空字符串。"""
+    path = ROOT / "frontend" / "static" / "doodles" / name
+    if not path.exists():
+        return ""
+    try:
+        image = Image.open(path)
+        image.load()
+        image = ImageOps.exif_transpose(image)
+        if image.mode in ("RGBA", "LA"):
+            rgba = image.convert("RGBA")
+            bg = Image.new("RGB", rgba.size, (255, 253, 248))
+            bg.paste(rgba, mask=rgba.split()[-1])
+            image = bg
+        else:
+            image = image.convert("RGB")
+        image.thumbnail((1280, 1280), Image.LANCZOS)
+        out = io.BytesIO()
+        image.save(out, format="JPEG", quality=80, optimize=True)
+        encoded = base64.b64encode(out.getvalue()).decode("ascii")
+        return f"data:image/jpeg;base64,{encoded}"
+    except Exception:
+        return ""
 
 
 def _day(month_key: str, day: int) -> date:
@@ -278,15 +307,54 @@ def seed(db, user: User) -> None:
     db.add(SavingsGoal(user_id=user.id, name="旅行基金",
                        target_amount=Decimal("3000.00"), saved_amount=Decimal("500.00")))
     notes = [
-        ("月底复盘视频会员是否恢复", "视频会员涨价了，先暂停一个月，月底按使用情况决定。", 2, "high"),
-        ("买一双跑鞋 600", "计划采购，提前留出预算。", 10, "medium"),
-        ("交下个月房租 2500", "每月固定支出，别忘了。", 5, "high"),
+        ("月底复盘视频会员是否恢复", "视频会员涨价了，先暂停一个月，月底按使用情况决定。",
+         2, "high", "家里"),
+        ("买一双跑鞋 600", "计划采购，提前留出预算。", 10, "medium", "线上"),
+        ("交下个月房租 2500", "每月固定支出，别忘了。", 5, "high", "手机银行"),
     ]
-    for title, content, days, priority in notes:
-        db.add(Note(user_id=user.id, title=title, content=content,
+    for title, content, days, priority, location in notes:
+        db.add(Note(user_id=user.id, title=title, content=content, location=location,
                     note_type="todo", status="open",
                     due_at=datetime.now() + timedelta(days=days),
                     priority=priority, pinned=0, color="lilac"))
+
+    # 今日待办时间轴示例（对应产品截图里的喝水/取快递提醒）
+    today_at_16 = datetime.now().replace(hour=16, minute=0, second=0, microsecond=0)
+    today_at_15 = datetime.now().replace(hour=15, minute=0, second=0, microsecond=0)
+    db.add(Note(user_id=user.id, title="四点喝水", content="提醒我四点的时候喝水",
+                location="理化国际大厦", note_type="todo", status="open",
+                due_at=today_at_16, priority="high", pinned=0, color="sand"))
+    db.add(Note(user_id=user.id, title="取快递", content="提醒我下午3点取快递",
+                location="菜鸟驿站", note_type="todo", status="done",
+                due_at=today_at_15, priority="medium", pinned=0, color="mint"))
+
+    # 想法 / 心情时间轴演示数据（合成文本，覆盖最近几天，便于展示月历与时间轴）
+    now = datetime.now()
+    free_notes = [
+        ("旧书店的下午", "在巷子里发现一家旧书店，木质书架有晒过太阳的味道。下次带相机来。",
+         "idea", now - timedelta(minutes=38), "lilac"),
+        ("今天的晚霞像橘子汽水", "下班路上抬头看到整片粉色，突然觉得这一天也没那么糟。",
+         "mood", now - timedelta(hours=2), "rose"),
+        ("把周报写成一个故事", "先讲问题，再讲怎么解决，最后留下一句下周的悬念。",
+         "idea", now - timedelta(days=2, hours=1), "lilac"),
+        ("被同事的小纸条暖到", "桌上多了一颗糖和一句“辛苦啦”。",
+         "mood", now - timedelta(days=1, hours=2), "rose"),
+        ("周末早餐计划", "试试用平底锅烤吐司，配一杯手冲，再把阳台收拾一下。",
+         "idea", now - timedelta(days=4, hours=1), "lilac"),
+        ("有点累，但还算踏实", "事情很多，一件件做完之后，心里反而安静下来。",
+         "mood", now - timedelta(days=3, hours=3), "rose"),
+    ]
+    free_photos = {
+        "旧书店的下午": _demo_photo("flower.png"),
+        "周末早餐计划": _demo_photo("coffee.png"),
+        "今天的晚霞像橘子汽水": _demo_photo("sun.png"),
+    }
+    for title, content, entry_type, created_at, color in free_notes:
+        db.add(Note(user_id=user.id, title=title, content=content,
+                    image=free_photos.get(title, ""),
+                    note_type="note", entry_type=entry_type, status="open",
+                    priority="medium", pinned=0, color=color,
+                    created_at=created_at, updated_at=created_at))
 
     seed_assets(db, user, cats)
     db.commit()

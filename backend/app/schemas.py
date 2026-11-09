@@ -114,7 +114,10 @@ class BillPageOut(BaseModel):
 class NoteIn(BaseModel):
     title: str = Field(min_length=1, max_length=100)
     content: str = Field(default="", max_length=5000)
+    image: str = Field(default="", max_length=4_000_000)
+    location: str = Field(default="", max_length=100)
     note_type: Literal["note", "todo"] = "note"
+    entry_type: Literal["note", "idea", "mood"] = "note"
     status: Literal["open", "done"] = "open"
     due_at: datetime | None = None
     priority: Literal["high", "medium", "low"] = "medium"
@@ -127,7 +130,10 @@ class NoteOut(BaseModel):
     id: int
     title: str
     content: str
+    image: str = ""
+    location: str = ""
     note_type: str
+    entry_type: str = "note"
     status: str
     due_at: datetime | None
     priority: str

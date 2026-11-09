@@ -55,6 +55,11 @@ def _ensure_schema_patches() -> None:
             "account_id": "ALTER TABLE bills ADD COLUMN account_id BIGINT",
             "liability_id": "ALTER TABLE bills ADD COLUMN liability_id BIGINT",
         },
+        "notes": {
+            "entry_type": "ALTER TABLE notes ADD COLUMN entry_type VARCHAR(10) NOT NULL DEFAULT 'note'",
+            "location": "ALTER TABLE notes ADD COLUMN location VARCHAR(100) NOT NULL DEFAULT ''",
+            "image": "ALTER TABLE notes ADD COLUMN image MEDIUMTEXT",
+        },
         "subscriptions": {
             "category_id": "ALTER TABLE subscriptions ADD COLUMN category_id BIGINT",
             "previous_amount": "ALTER TABLE subscriptions ADD COLUMN previous_amount DECIMAL(12, 2)",

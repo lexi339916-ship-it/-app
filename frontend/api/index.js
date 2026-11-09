@@ -1,6 +1,6 @@
 /** 与后端 REST API 一一对应的接口封装 */
-import http, { getBaseUrl } from './request.js'
-import store from '../store/user.js'
+import http, { getBaseUrl, refreshAccessToken } from './request.js'
+import store, { clearLogin } from '../store/user.js'
 
 // ---- 认证 ----
 export const apiRegister = (data) => http.post('/api/auth/register', data)
@@ -136,6 +136,48 @@ export const apiUnifiedNotificationAction = (source, id, action) =>
   http.post(`/api/notifications/${source}/${id}/action`, { action })
 export const apiMarkAllNotificationsRead = () =>
   http.post('/api/notifications/read-all', {})
+
+/** 上传想法/心情照片（multipart，401 自动续期一次） */
+function uploadNotePhoto(filePath, retried = false) {
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: getBaseUrl() + '/api/notes/photo',
+      filePath,
+      name: 'file',
+      timeout: 60000,
+      header: store.token ? { Authorization: 'Bearer ' + store.token } : {},
+      success(res) {
+        let body = {}
+        try { body = JSON.parse(res.data) } catch (e) { body = {} }
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(body)
+          return
+        }
+        if (res.statusCode === 401 && !retried) {
+          refreshAccessToken()
+            .then(() => uploadNotePhoto(filePath, true))
+            .then(resolve)
+            .catch(() => {
+              clearLogin()
+              uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
+              setTimeout(() => uni.reLaunch({ url: '/pages/login/login' }), 600)
+              reject({ status: 401, message: '登录已过期', body })
+            })
+          return
+        }
+        const message = body.message || `照片上传失败（${res.statusCode}）`
+        uni.showToast({ title: message, icon: 'none' })
+        reject({ status: res.statusCode, message, body })
+      },
+      fail() {
+        const message = '照片上传失败，请检查网络'
+        uni.showToast({ title: message, icon: 'none' })
+        reject({ status: -1, message, body: null })
+      },
+    })
+  })
+}
+export const apiUploadNotePhoto = (filePath) => uploadNotePhoto(filePath)
 
 /** 上传头像（multipart） */
 export const apiUploadAvatar = (filePath) => new Promise((resolve, reject) => {

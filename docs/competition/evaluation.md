@@ -1,12 +1,12 @@
 # Agent 评测报告（团队自测）
 
 > 说明：官方未公开评分权重。本报告是团队内部可复现证据，不是官方评分，也不宣称达到任何官方标准。
-> 更新：2026-11-05；已从 60 条扩展到 100 条，并新增数据库级流程评测。
+> 更新：2026-11-09；已从 60 条扩展到 100 条，并新增数据库级流程评测、记录页三模式与照片断言。
 
 ## 1. 评测设置
 
 - 后端：`http://127.0.0.1:8000`
-- 账号：`judge_demo`（合成数据：65 笔账单、3 个订阅、1 个储蓄目标、3 个待办）
+- 账号：`judge_demo`（合成数据：65 笔账单、3 个订阅、1 个储蓄目标、11 条便签/待办，含想法/心情与演示照片）
 - 模型：`glm-4-flash`（仅账单自然语言解析；其余场景走确定性 SQL/规则）
 - 数据集：`tests/agent_eval/cases.py`，100 条，dev/test 各 50
 - 脚本：
@@ -23,6 +23,7 @@
   - `tests/csv_import_test.py`（47 项 CSV 导入断言）
   - `tests/agent_eval/csv_import_report.md`（CSV 导入测试证据）
   - `tests/avatar_test.py`、`tests/notifications_test.py`、`tests/budget_consistency_test.py`、`tests/version_test.py`（v2.0 收口）
+  - `tests/notes_entries_test.py`（待办/想法/心情、地点、照片上传与压缩、用户隔离，23 项）
 
 ## 2. 结果（最近一次真实运行）
 
@@ -186,6 +187,7 @@
 - 中文数字：`十五`、`一百二`、`三千五`、`十五块五`、`三个月`、`两年` 等 56 项断言。
 - 安全：敏感信息脱敏、提示注入、跨用户隔离、登录失败限流。
 - 消费健康：五项指标、空数据、用户隔离、used_up/over100 语义。
+- 记录页：待办/想法/心情分类、旧便签兼容、地点、照片上传/压缩/非图片拒绝/未登录拒绝、用户隔离。
 
 ## 4. 评测方法的局限
 
@@ -211,6 +213,7 @@
 
 ```bash
 python tools/seed_demo.py
+python tests/notes_entries_test.py
 python tests/agent_eval/run_eval.py --split all
 python tests/agent_eval/run_eval.py --split test
 python tests/agent_eval/run_flow_eval.py

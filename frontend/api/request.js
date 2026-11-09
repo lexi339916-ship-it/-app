@@ -16,7 +16,7 @@ export function getBaseUrl() {
 // 单飞：同一时刻只发起一次刷新请求
 let refreshPromise = null
 
-function refreshAccessToken() {
+export function refreshAccessToken() {
   if (refreshPromise) return refreshPromise
   const refreshToken = uni.getStorageSync('refresh_token')
   if (!refreshToken) return Promise.reject(new Error('NO_REFRESH_TOKEN'))

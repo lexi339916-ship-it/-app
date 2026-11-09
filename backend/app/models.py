@@ -71,7 +71,14 @@ class Note(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # 记录照片：压缩后的 JPEG data URL，不保存原图
+    image: Mapped[str | None] = mapped_column(
+        Text().with_variant(MEDIUMTEXT, "mysql"), nullable=True, default="")
+    # 待办地点（可选），用于任务时间轴展示
+    location: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     note_type: Mapped[str] = mapped_column(Enum("note", "todo"), nullable=False, default="note")
+    # 自由记录细分：note 兼容旧便签，idea 想法/灵感，mood 心情
+    entry_type: Mapped[str] = mapped_column(String(10), nullable=False, default="note")
     status: Mapped[str] = mapped_column(Enum("open", "done"), nullable=False, default="open")
     due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # 任务管理扩展：优先级（high/medium/low）、置顶与任务颜色

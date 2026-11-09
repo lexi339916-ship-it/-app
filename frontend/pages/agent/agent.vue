@@ -45,6 +45,15 @@ const composerPlaceholder = computed(() => {
   return '发消息给知账……'
 })
 
+const PHRASES = [
+  '你好',
+  '你是谁',
+  '本月消费怎么样',
+  '查看我的资产',
+  '检查订阅',
+  '这个月预算还剩多少',
+]
+
 let recorder = null
 try {
   recorder = uni.getRecorderManager ? uni.getRecorderManager() : null
@@ -171,6 +180,11 @@ async function sendMessage(text) {
     loading.value = false
     scrollToBottom()
   }
+}
+
+function sendPhrase(text) {
+  if (loading.value) return
+  sendMessage(text)
 }
 
 function retryError() {
@@ -488,6 +502,18 @@ onShow(async () => {
       <view id="chat-bottom" class="anchor-bottom" />
     </scroll-view>
 
+    <!-- 常用语提示 -->
+    <view class="phrase-bar">
+      <text class="phrase-label">常用语</text>
+      <scroll-view class="phrase-scroll" scroll-x>
+        <view class="phrase-row">
+          <text v-for="p in PHRASES" :key="p"
+            :class="['phrase-chip', loading && 'phrase-off']"
+            @click="sendPhrase(p)">{{ p }}</text>
+        </view>
+      </scroll-view>
+    </view>
+
     <!-- 输入区 -->
     <ChatComposer v-model="draft" :loading="loading" :recording="recording"
       :transcribing="voiceLoading" :image-loading="imageLoading"
@@ -530,6 +556,15 @@ onShow(async () => {
 .chat-scroll { flex: 1; height: 0; min-height: 0; padding: 0 22rpx; box-sizing: border-box; }
 .anchor-top { height: 4rpx; }
 .anchor-bottom { height: 24rpx; }
+.phrase-bar { flex-shrink: 0; display: flex; align-items: center; gap: 10rpx;
+  padding: 6rpx 20rpx 4rpx; background: rgba(255, 253, 248, .86); }
+.phrase-label { flex-shrink: 0; font-size: 19rpx; color: #A6AAC2; }
+.phrase-scroll { flex: 1; min-width: 0; white-space: nowrap; }
+.phrase-row { display: inline-flex; gap: 8rpx; padding-bottom: 4rpx; }
+.phrase-chip { display: inline-block; font-size: 20rpx; color: #5A54B8; background: #F2F1FF;
+  border: 1rpx solid #E4E0F5; border-radius: 999rpx; padding: 7rpx 16rpx; }
+.phrase-chip:active { background: #E8E5FF; }
+.phrase-off { opacity: .5; }
 .pending-line { display: flex; justify-content: flex-end; padding: 8rpx 0 14rpx; }
 .pending-bubble { max-width: 78%; background: linear-gradient(135deg, #7C8BFF, #A78BFA);
   color: #fff; font-size: 27rpx; line-height: 1.6; padding: 16rpx 20rpx;

@@ -72,6 +72,8 @@ async def run_agent(db: Session, user: User, message: str, mode: str = "auto",
             _run_simulate(db, user, safe_message, run, start)
         elif intent == "health":
             _run_health(db, user, safe_message, run, start)
+        elif intent == "chat":
+            _run_chat(db, user, safe_message, run, start)
         else:
             _run_query(db, user, safe_message, run, start)
     except policy.PolicyError as exc:
@@ -103,6 +105,17 @@ def _detect_intent(message: str, mode: str) -> str:
     if mode == "action":
         return "bill"
     text = message.lower()
+    # 简单问候/身份/感谢：不进入业务查询，也不调用模型编数字
+    chat_markers = ("你好", "您好", "嗨", "hi", "hello", "你是谁", "你叫什么",
+                    "你能做什么", "你能帮我做什么", "介绍一下你自己", "介绍一下自己",
+                    "谢谢", "感谢", "怎么用")
+    business_words = ("账单", "消费", "预算", "订阅", "目标", "资产", "负债",
+                      "记账", "记一笔", "花了", "花钱", "存", "攒", "买", "查",
+                      "余额", "收入", "支出", "账户", "健康", "模拟",
+                      "午饭", "晚饭", "早饭", "打车", "工资", "退款", "元", "块")
+    if (len(text) <= 30 and any(k in text for k in chat_markers)
+            and not any(k in text for k in business_words)):
+        return "chat"
     # 购买模拟必须先于记账/目标：用户问的是“如果买”，不是“已经买了”
     if re.search(r"(如果|假如).{0,16}(买|购买|换|入手)|"
                  r"(会影响|影响).{0,12}(目标|预算|储蓄)|买了?会", text):
@@ -804,6 +817,29 @@ def _run_simulate(db: Session, user: User, message: str, run: AgentRun,
             "intent": "simulate", "as_of": result["as_of"],
             "cards": [{"type": "simulation", "data": result}],
         },
+        latency_ms=_elapsed(start))
+
+
+def _run_chat(db: Session, user: User, message: str, run: AgentRun,
+              start: float) -> None:
+    """简单问候/身份/感谢：确定性回复，不调用模型、不编造业务数字。"""
+    text = message.lower()
+    trace.set_plan(db, run, ["识别为日常对话", "返回助手能力与使用提示"])
+    if any(k in text for k in ("谢谢", "感谢")):
+        answer = ("不客气。需要查消费、看资产、检查订阅或规划储蓄时，直接告诉我就行。")
+    elif any(k in text for k in ("你是谁", "你叫什么", "介绍一下", "你能做什么",
+                                  "你能帮我做什么", "怎么用")):
+        answer = ("我是知账 AI，你的个人消费管理助手。我可以帮你查本月收支、"
+                  "分析消费结构、查看资产与负债、检查订阅、规划储蓄目标，"
+                  "也可以在购买前做预算/目标影响测算。涉及写入时，我会先给出方案，"
+                  "由你审批后才执行。")
+    else:
+        answer = ("你好，我是知账 AI。你可以直接说“本月消费怎么样”“查看我的资产”"
+                  "或“帮我检查订阅”，我会基于你的真实账本和工具数据回答。")
+    trace.finish_run(
+        db, run, "completed", answer,
+        evidence={"intent": "chat", "model": "rule",
+                  "as_of": datetime.now().isoformat(timespec="seconds")},
         latency_ms=_elapsed(start))
 
 

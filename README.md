@@ -14,7 +14,7 @@
 - **行动**：读写工具分离；写操作先出 diff，用户批准后才执行。
 - **反思**：执行后回查数据库；偏离时重规划；支持撤销。
 - **主动**：预算超支、订阅涨价/低频、目标延期、消费变化、异常大额、计划采购。
-- **对话**：知账 AI 欢迎场景、消息气泡、固定输入区、语音/图片、历史会话、紧凑工具菜单、真实执行轨迹与审批/结果卡。
+- **对话**：知账 AI 欢迎场景、常用语提示、简单问候/身份回答、消息气泡、固定输入区、语音/图片、历史会话、紧凑工具菜单、真实执行轨迹与审批/结果卡。
 - **资产**：手动维护现金/银行/微信/支付宝/储蓄，以及房产/车辆/理财/贵重物品；信用卡/分期消费可关联负债；转账不计消费，净资产由后端 Decimal 计算；Agent 可查资产、分析净资产、做购买模拟。
 - **可解释**：数字来自 SQL/工具，带来源、公式、`as_of`；不展示模型原始思维链。
 
@@ -82,6 +82,7 @@ python tests/assets_test.py
 python tests/agent_assets_test.py
 python tests/agent_session_test.py
 python tests/agent_health_test.py
+python tests/agent_chat_test.py
 python tests/csv_import_test.py
 ```
 

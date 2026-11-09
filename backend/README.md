@@ -56,6 +56,7 @@ app/
 - **统一通知**：保留 `budget_alerts` 与 `agent_notifications` 两张源表，
   新增 `/api/notifications/*` 聚合读模型；支持 `group=budget_over/budget_near/subscription/goal/purchase/other` 分组筛选；旧接口不变。
 - **Agent 健康诊断**：`/api/agent/run` 的 `health` 意图复用 `health_service.build_report`，只读返回真实指标/覆盖率/建议，不审批、不编造。
+- **简单对话**：`chat` 意图处理你好/你是谁/谢谢/怎么用等，确定性话术，不调用模型、不编造业务数字；带业务词的问候仍走原意图。
 - **预算**：`category_budgets` 是唯一写入源；`/api/budgets` 在存在分类预算时返回只读投影。
 - **头像**：`users.avatar` 存 256×256 JPEG data URL，不保存原图。
 - **个人资产**：`asset_accounts/asset_liabilities/asset_transactions` 独立账本；支持现金/银行/微信/支付宝/储蓄、房产/车辆/理财/贵重物品；转账只写两条流水、不生成账单；账单显式关联 `account_id` 才影响余额，关联 `liability_id` 时自动增加信用卡/分期负债。

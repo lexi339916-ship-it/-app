@@ -182,11 +182,6 @@ async function sendMessage(text) {
   }
 }
 
-function sendPhrase(text) {
-  if (loading.value) return
-  sendMessage(text)
-}
-
 function retryError() {
   if (!error.value || !error.value.text) return
   const text = error.value.text
@@ -335,12 +330,8 @@ function stopVoice() {
   try { recorder.stop() } catch (e) { /* ignore */ }
 }
 
-function openAttach() {
-  if (loading.value) return
-  chooseReceipt()
-}
-
 function chooseReceipt() {
+  if (loading.value || imageLoading.value) return
   if (!uni.chooseImage) {
     uni.showToast({ title: '当前环境不支持选图，请用文字记账', icon: 'none' })
     return
@@ -502,24 +493,21 @@ onShow(async () => {
       <view id="chat-bottom" class="anchor-bottom" />
     </scroll-view>
 
-    <!-- 常用语提示 -->
-    <view class="phrase-bar">
-      <text class="phrase-label">常用语</text>
-      <scroll-view class="phrase-scroll" scroll-x>
-        <view class="phrase-row">
-          <text v-for="p in PHRASES" :key="p"
-            :class="['phrase-chip', loading && 'phrase-off']"
-            @click="sendPhrase(p)">{{ p }}</text>
-        </view>
-      </scroll-view>
+    <!-- 拍照记账快捷入口 -->
+    <view class="capture-strip">
+      <view :class="['capture-chip', imageLoading && 'capture-off']" @click="chooseReceipt">
+        <text class="capture-icon">📷</text>
+        <text>{{ imageLoading ? '识别中…' : '拍照记账' }}</text>
+      </view>
+      <text class="capture-hint">支付截图 / 小票 · 识别后确认再写入</text>
     </view>
 
     <!-- 输入区 -->
     <ChatComposer v-model="draft" :loading="loading" :recording="recording"
-      :transcribing="voiceLoading" :image-loading="imageLoading"
+      :transcribing="voiceLoading" :phrases="PHRASES"
       :placeholder="composerPlaceholder"
       @send="sendMessage()" @voice-start="startVoice" @voice-stop="stopVoice"
-      @attach="openAttach" @tools="showTools = true" />
+      @tools="showTools = true" />
 
     <SessionHistorySheet :visible="historyOpen" :sessions="sessions"
       :memories="memories" :loading="historyLoading"
@@ -556,15 +544,15 @@ onShow(async () => {
 .chat-scroll { flex: 1; height: 0; min-height: 0; padding: 0 22rpx; box-sizing: border-box; }
 .anchor-top { height: 4rpx; }
 .anchor-bottom { height: 24rpx; }
-.phrase-bar { flex-shrink: 0; display: flex; align-items: center; gap: 10rpx;
-  padding: 6rpx 20rpx 4rpx; background: rgba(255, 253, 248, .86); }
-.phrase-label { flex-shrink: 0; font-size: 19rpx; color: #A6AAC2; }
-.phrase-scroll { flex: 1; min-width: 0; white-space: nowrap; }
-.phrase-row { display: inline-flex; gap: 8rpx; padding-bottom: 4rpx; }
-.phrase-chip { display: inline-block; font-size: 20rpx; color: #5A54B8; background: #F2F1FF;
-  border: 1rpx solid #E4E0F5; border-radius: 999rpx; padding: 7rpx 16rpx; }
-.phrase-chip:active { background: #E8E5FF; }
-.phrase-off { opacity: .5; }
+.capture-strip { flex-shrink: 0; display: flex; align-items: center; gap: 12rpx;
+  padding: 6rpx 20rpx 8rpx; background: rgba(255, 253, 248, .86); }
+.capture-chip { display: inline-flex; align-items: center; gap: 6rpx; flex-shrink: 0;
+  font-size: 21rpx; font-weight: 700; color: #5A54B8; background: #EFF1FF;
+  border: 1rpx solid #DFE2FF; border-radius: 999rpx; padding: 8rpx 18rpx; }
+.capture-chip:active { background: #E4E6FF; }
+.capture-off { opacity: .55; }
+.capture-icon { font-size: 21rpx; }
+.capture-hint { font-size: 18rpx; color: #B0B4C8; }
 .pending-line { display: flex; justify-content: flex-end; padding: 8rpx 0 14rpx; }
 .pending-bubble { max-width: 78%; background: linear-gradient(135deg, #7C8BFF, #A78BFA);
   color: #fff; font-size: 27rpx; line-height: 1.6; padding: 16rpx 20rpx;

@@ -31,7 +31,6 @@ const GROUPS = [
       { key: 'summary', label: '消费总结', desc: '本月收支与主要支出', icon: '📊', bg: '#EFF1FF' },
       { key: 'health', label: '消费健康诊断', desc: '预算、目标、订阅、结构', icon: '🩺', bg: '#E9F8F2' },
       { key: 'simulator', label: '消费决策模拟', desc: '买之前先测算影响', icon: '🧮', bg: '#FFF6E7' },
-      { key: 'note', label: '任务提取', desc: '一句话拆成待办', icon: '🗒️', bg: '#F4F0FF' },
     ],
   },
   {
@@ -39,9 +38,9 @@ const GROUPS = [
     title: '账单与管理',
     desc: '记账、导入与现有管理页',
     tools: [
-      { key: 'receipt', label: '截图记账', desc: '支付截图 / 小票', icon: '📷', bg: '#EEF1FF' },
       { key: 'csv', label: 'CSV 导入', desc: '微信 / 支付宝 / 通用', icon: '📥', bg: '#E9F8F2' },
       { key: 'budget', label: '预算管理', desc: '分类预算与调度', icon: '💰', bg: '#FFEFF2' },
+      { key: 'note', label: '任务提取', desc: '一句话拆成待办', icon: '🗒️', bg: '#F4F0FF' },
       { key: 'subscriptions', label: '订阅管理', desc: '涨价 / 低频体检', icon: '🔁', bg: '#F6F4FB' },
       { key: 'goals', label: '储蓄目标', desc: '目标 / 挑战 / 进度', icon: '🎯', bg: '#FFEDEE' },
     ],
@@ -53,7 +52,6 @@ const ACTIONS = {
   health: { type: 'chat', prompt: '帮我做一次消费健康诊断' },
   simulator: { type: 'navigate', url: '/pages/simulator/simulator' },
   note: { type: 'panel', panel: 'note' },
-  receipt: { type: 'pick-image' },
   csv: { type: 'navigate', url: '/pages/import/import?pick=1' },
   budget: { type: 'navigate', url: '/pages/budget/center' },
   subscriptions: { type: 'navigate', url: '/pages/subscriptions/list' },

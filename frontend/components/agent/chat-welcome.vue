@@ -1,12 +1,17 @@
 <script setup>
-const emit = defineEmits(['ask'])
+const emit = defineEmits(['ask', 'tool'])
 
 const SCENES = [
   { key: 'assets', icon: '🏦', label: '我的资产', desc: '资产、负债与净资产', prompt: '查看我的个人资产' },
   { key: 'spending', icon: '📊', label: '消费分析', desc: '本月支出与分类', prompt: '帮我分析本月消费' },
   { key: 'goal', icon: '🎯', label: '储蓄规划', desc: '目标拆解与预算', prompt: '帮我规划储蓄目标' },
-  { key: 'subscription', icon: '🔁', label: '订阅检查', desc: '涨价与低频订阅', prompt: '帮我检查订阅支出' },
+  { key: 'note', icon: '🗒️', label: '任务提取', desc: '一句话拆成待办', tool: 'note' },
 ]
+
+function openScene(scene) {
+  if (scene.tool) emit('tool', scene.tool)
+  else emit('ask', scene.prompt)
+}
 </script>
 
 <template>
@@ -20,7 +25,7 @@ const SCENES = [
     </view>
 
     <view class="scene-grid">
-      <view class="scene" v-for="s in SCENES" :key="s.key" @click="emit('ask', s.prompt)">
+      <view class="scene" v-for="s in SCENES" :key="s.key" @click="openScene(s)">
         <view class="scene-icon">{{ s.icon }}</view>
         <view class="scene-main">
           <text class="scene-label">{{ s.label }}</text>

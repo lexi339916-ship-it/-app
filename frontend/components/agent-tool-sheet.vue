@@ -88,6 +88,8 @@ function initPanel() {
   if (props.focus === 'receipt' || props.initialReceipt.length) {
     panel.value = 'receipt'
     fillReceipt(props.initialReceipt)
+  } else if (props.focus === 'note') {
+    panel.value = 'note'
   } else {
     panel.value = ''
   }

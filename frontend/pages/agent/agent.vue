@@ -31,7 +31,7 @@ const memories = ref([])
 const recording = ref(false)
 const voiceLoading = ref(false)
 const imageLoading = ref(false)
-const receiptFocus = ref(false)
+const toolFocus = ref('')
 const scrollAnchor = ref('')
 
 const showWelcome = computed(() =>
@@ -357,7 +357,7 @@ function chooseReceipt() {
           bill_date: d.bill_date || new Date().toISOString().slice(0, 10),
           remark: d.remark || d.merchant || '',
         }))
-        receiptFocus.value = true
+        toolFocus.value = 'receipt'
         showTools.value = true
       } catch (e) {
         error.value = {
@@ -371,10 +371,15 @@ function chooseReceipt() {
   })
 }
 
+function openTool(key = '') {
+  toolFocus.value = key
+  showTools.value = true
+}
+
 function closeTools() {
   showTools.value = false
   pendingReceipt.value = []
-  receiptFocus.value = false
+  toolFocus.value = ''
 }
 
 function handleToolAction(action) {
@@ -405,7 +410,7 @@ onShow(async () => {
       const drafts = JSON.parse(pending)
       if (Array.isArray(drafts) && drafts.length) {
         pendingReceipt.value = drafts
-        receiptFocus.value = true
+        toolFocus.value = 'receipt'
         showTools.value = true
       }
     } catch (e) { /* 忽略损坏缓存 */ }
@@ -465,7 +470,7 @@ onShow(async () => {
       scroll-with-animation>
       <view id="chat-top" class="anchor-top" />
 
-      <ChatWelcome v-if="showWelcome" @ask="sendMessage" />
+      <ChatWelcome v-if="showWelcome" @ask="sendMessage" @tool="openTool" />
 
       <view v-for="r in sessionRuns" :key="r.run_id" :id="'run-' + r.run_id">
         <AgentRunMessage :run="r" :deciding="deciding"
@@ -507,7 +512,7 @@ onShow(async () => {
       :transcribing="voiceLoading" :phrases="PHRASES"
       :placeholder="composerPlaceholder"
       @send="sendMessage()" @voice-start="startVoice" @voice-stop="stopVoice"
-      @tools="showTools = true" />
+      @tools="openTool('')" />
 
     <SessionHistorySheet :visible="historyOpen" :sessions="sessions"
       :memories="memories" :loading="historyLoading"
@@ -516,7 +521,7 @@ onShow(async () => {
       @delete="deleteSession" @new="newSession" @delete-memory="removeMemory" />
 
     <AgentToolSheet :visible="showTools" :initial-receipt="pendingReceipt"
-      :focus="receiptFocus ? 'receipt' : ''"
+      :focus="toolFocus"
       @close="closeTools" @action="handleToolAction" />
   </view>
 </template>

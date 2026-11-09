@@ -11,6 +11,7 @@ const items = ref([])
 const loading = ref(true)
 const error = ref(null)
 const activeGroup = ref('all')
+const filtersOpen = ref(true)
 const acting = ref('')
 let clearedOnce = false
 
@@ -26,6 +27,8 @@ const GROUPS = [
 ]
 
 const filteredCount = computed(() => items.value.length)
+const activeGroupLabel = computed(() =>
+  (GROUPS.find(g => g.key === activeGroup.value) || GROUPS[0]).label)
 
 function levelText(level) {
   return { critical: '重要', warn: '关注', info: '提示' }[level] || level
@@ -138,7 +141,14 @@ onShow(async () => {
       <text class="refresh" @click="load">刷新</text>
     </view>
 
-    <scroll-view class="group-scroll" scroll-x>
+    <view class="filter-head">
+      <text class="filter-current">筛选 · {{ activeGroupLabel }}</text>
+      <text class="filter-toggle" @click="filtersOpen = !filtersOpen">
+        {{ filtersOpen ? '收起' : '展开' }} {{ filtersOpen ? '⌃' : '⌄' }}
+      </text>
+    </view>
+
+    <scroll-view v-if="filtersOpen" class="group-scroll" scroll-x>
       <view class="group-row">
         <text v-for="g in GROUPS" :key="g.key"
           :class="['group-chip', activeGroup === g.key && 'group-on']"
@@ -200,9 +210,14 @@ onShow(async () => {
 .hero-title { display: block; font-size: 40rpx; font-weight: 800; color: #5A54B8; }
 .hero-sub { display: block; font-size: 23rpx; color: #8A90A8; margin-top: 6rpx; }
 .refresh { font-size: 23rpx; color: #6C7BF5; flex-shrink: 0; padding-top: 10rpx; }
+.filter-head { display: flex; align-items: center; justify-content: space-between;
+  gap: 12rpx; margin: 0 2rpx 10rpx; }
+.filter-current { font-size: 22rpx; color: #8A90A8; }
+.filter-toggle { font-size: 22rpx; color: #6C7BF5; flex-shrink: 0; padding: 4rpx 8rpx; }
 .group-scroll { white-space: nowrap; margin-bottom: 18rpx; }
 .group-row { display: inline-flex; gap: 10rpx; padding: 2rpx 2rpx 6rpx; }
-.group-chip { display: inline-block; font-size: 22rpx; color: #8A90A8; background: #F6F4FB;
+.group-chip { display: inline-block; flex-shrink: 0; white-space: nowrap;
+  font-size: 22rpx; color: #8A90A8; background: #F6F4FB;
   border-radius: 999rpx; padding: 10rpx 20rpx; }
 .group-on { color: #FFF; background: #6C7BF5; font-weight: 700; }
 .card { background: #FFFDF8; border-radius: 28rpx; padding: 24rpx; margin-bottom: 20rpx;

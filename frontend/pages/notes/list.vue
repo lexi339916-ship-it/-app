@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { apiNotes, apiAddNote, apiUpdateNote } from '../../api/index.js'
+import { buildEntryTip, buildTodoTip } from '../../common/note-tips.js'
 import store from '../../store/user.js'
 
 const TZ = new Date().getTimezoneOffset() * 60000
@@ -104,6 +105,7 @@ async function toggleDone(n) {
   try {
     await apiUpdateNote(n.id, {
       title: n.title, content: n.content, location: n.location || '',
+      images: entryPhotos(n),
       note_type: n.note_type, entry_type: n.entry_type || 'note',
       status: next, due_at: n.due_at, priority: n.priority,
       pinned: n.pinned, color: n.color || 'lilac',
@@ -117,6 +119,7 @@ async function togglePin(n) {
   try {
     await apiUpdateNote(n.id, {
       title: n.title, content: n.content, location: n.location || '',
+      images: entryPhotos(n),
       note_type: n.note_type, entry_type: n.entry_type || 'note',
       status: n.status, due_at: n.due_at, priority: n.priority,
       pinned: !n.pinned, color: n.color || 'lilac',
@@ -244,50 +247,24 @@ function reminderTime(n) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-const TODO_TIPS = [
-  [/喝水|水杯|饮水/, '喝水有益健康，记得准备个水杯哈~'],
-  [/快递|取件|包裹/, '取快递别忘了带手机和取件码喔~'],
-  [/房租|交租|转账/, '交房租前先确认金额和收款人，记得留好凭证~'],
-  [/跑鞋|运动|跑步|健身/, '运动前先热热身，量力而行，别把自己累着~'],
-  [/会员|订阅|续费/, '先看看最近的使用记录，再决定要不要续费~'],
-  [/报告|PPT|答辩|作业|学习/, '先完成最重要的一步，剩下的就会顺起来~'],
-  [/买|采购|购物/, '买之前先看看预算，需要比想要更值得~'],
-]
 function todoTip(n) {
-  const text = `${n.title || ''} ${n.content || ''}`
-  for (const [pattern, tip] of TODO_TIPS) {
-    if (pattern.test(text)) return tip
-  }
-  return '慢慢来，一件一件完成就好~'
+  return buildTodoTip(n)
 }
-
-const IDEA_TIPS = [
-  [/读书|阅读|书|文章/, '这个阅读片段值得留下来，也许可以顺手写一句自己的感受~'],
-  [/咖啡|店|旅行|拍照|照片|散步|早餐|做饭|美食/, '生活里的小发现最珍贵，记得给这个想法留一张照片~'],
-  [/工作|周报|项目|效率|会议/, '把想法落到下一步行动上，会更容易开始~'],
-  [/买|预算|存钱|理财/, '先记下来，过两天再看，也许会更清楚是不是真的需要~'],
-  [/学习|考试|课程|论文/, '先记下来，再拆成一个小步骤，今天就能开始一点点~'],
-]
-const MOOD_POSITIVE = /开心|高兴|快乐|很好|美好|暖|喜欢|幸福|轻松|满足|惊喜|期待|治愈|晚霞|不错/
-const MOOD_TIRED = /累|忙|压力|焦虑|烦|困|疲惫|加班|赶/
-const MOOD_SAD = /难过|低落|失望|伤心|委屈|孤独|想哭|崩溃/
 
 function entryTip(n) {
-  const text = `${n.title || ''} ${n.content || ''}`
-  if (entryType.value === 'idea') {
-    for (const [pattern, tip] of IDEA_TIPS) {
-      if (pattern.test(text)) return tip
-    }
-    return '这个想法很具体，先收好；找个安静的时间，把它往前推一小步~'
-  }
-  if (MOOD_SAD.test(text)) return '先允许自己难过一会儿；如果愿意，可以找信任的人说说话~'
-  if (MOOD_TIRED.test(text)) return '辛苦了，先照顾好自己的情绪，慢一点也没关系~'
-  if (MOOD_POSITIVE.test(text)) return '开心的事值得被记住，愿这份好心情多停留一会儿~'
-  return '情绪被看见，就已经很重要了。谢谢你把这一刻留下来~'
+  return buildEntryTip(n, entryType.value)
 }
 
-function previewPhoto(n) {
-  if (n.image) uni.previewImage({ urls: [n.image] })
+function entryPhotos(n) {
+  const list = Array.isArray(n.images) ? n.images.filter(Boolean) : []
+  if (list.length) return list
+  return n.image ? [n.image] : []
+}
+
+function previewPhoto(n, index = 0) {
+  const urls = entryPhotos(n)
+  if (!urls.length) return
+  uni.previewImage({ urls, current: urls[index] || urls[0] })
 }
 
 const todoTimelineGroups = computed(() => {
@@ -544,8 +521,14 @@ function goEdit(id) {
   uni.navigateTo({ url: '/pages/notes/edit?id=' + id })
 }
 
+function goNewTaskFor(date) {
+  const target = date && date !== 'undated' ? date : todayStr
+  calSelected.value = target
+  uni.navigateTo({ url: `/pages/notes/edit?type=todo&date=${target}` })
+}
+
 function goNewTask() {
-  uni.navigateTo({ url: `/pages/notes/edit?type=todo&date=${calSelected.value}` })
+  goNewTaskFor(calSelected.value)
 }
 
 function goNewEntry() {
@@ -619,7 +602,6 @@ onShow(load)
             <text class="cal-btn" @click="shiftMonth(-1)">‹</text>
             <text class="cal-today-btn" @click="goToday">今天</text>
             <text class="cal-btn" @click="shiftMonth(1)">›</text>
-            <text class="cal-add" @click="goNewTask">＋</text>
           </view>
         </view>
 
@@ -646,11 +628,12 @@ onShow(load)
 
         <!-- 日历下方：待办时间轴 -->
         <view class="todo-feed">
-          <view v-for="g in todoTimelineGroups" :key="g.key" class="todo-group">
+          <view v-for="(g, gIdx) in todoTimelineGroups" :key="g.key" class="todo-group">
             <view class="todo-date-head">
               <view class="todo-date-square" />
               <text class="todo-date-label">{{ g.label }}</text>
               <text class="todo-date-count">{{ g.items.length }} 项</text>
+              <view v-if="gIdx === 0" class="todo-date-add" @click.stop="goNewTaskFor(g.key)">＋</view>
             </view>
 
             <view v-for="(n, idx) in g.items" :key="n.id" class="todo-row">
@@ -703,7 +686,8 @@ onShow(load)
 
           <view v-if="!todoTimelineGroups.length && !loading" class="glass day-empty">
             <image class="empty-animal" src="/static/doodles/rabbit.png" mode="widthFix" />
-            <text>还没有待办，点「＋新建任务」添加</text>
+            <text>还没有待办，点下面按钮添加</text>
+            <view class="empty-add" @click="goNewTaskFor(todayStr)">＋ 新建任务</view>
           </view>
         </view>
       </block>
@@ -849,8 +833,11 @@ onShow(load)
                 </view>
                 <text class="card-title">{{ n.title }}</text>
                 <text v-if="n.content" class="card-body">{{ n.content }}</text>
-                <image v-if="n.image" class="entry-photo" :src="n.image" mode="aspectFill"
-                  @click.stop="previewPhoto(n)" />
+                <view v-if="entryPhotos(n).length" class="entry-photos">
+                  <image v-for="(src, idx) in entryPhotos(n)" :key="idx"
+                    class="entry-photo" :src="src" mode="aspectFill"
+                    @click.stop="previewPhoto(n, idx)" />
+                </view>
                 <view class="entry-ai-tip">
                   <text class="entry-ai-name">小知：</text>
                   <text class="entry-ai-text">{{ entryTip(n) }}</text>
@@ -1069,19 +1056,6 @@ onShow(load)
   border-radius: 999rpx;
   padding: 8rpx 20rpx;
 }
-.cal-add {
-  width: 62rpx;
-  height: 62rpx;
-  margin-left: 6rpx;
-  border-radius: 28rpx;
-  background: linear-gradient(135deg, #7C8BFF, #A78BFA);
-  color: #fff;
-  font-size: 40rpx;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
 .cal-panel { margin: 0 8rpx 14rpx; padding: 12rpx 4rpx 10rpx; }
 .cal-week { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 8rpx; }
@@ -1180,11 +1154,32 @@ onShow(load)
 .pin-mark { width: 26rpx; height: 26rpx; }
 .day-empty { padding: 40rpx 10rpx; text-align: center; font-size: 26rpx; color: #A6AAC2; }
 .empty-animal { width: 140rpx; display: block; margin: 0 auto 10rpx; }
+.empty-add {
+  width: 240rpx;
+  height: 66rpx;
+  margin: 22rpx auto 0;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #7C8BFF, #A78BFA);
+  color: #fff;
+  font-size: 25rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8rpx 20rpx rgba(124, 139, 255, .26);
+}
 
 /* ---------- 待办时间轴（日历下方） ---------- */
 .todo-feed { margin: 18rpx 24rpx 0; }
 .todo-group { margin-bottom: 10rpx; }
-.todo-date-head { display: flex; align-items: center; gap: 12rpx; margin: 14rpx 4rpx 12rpx; }
+.todo-date-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin: 14rpx 4rpx 12rpx;
+  padding-right: 108rpx;
+}
 .todo-date-square {
   width: 14rpx;
   height: 14rpx;
@@ -1194,6 +1189,24 @@ onShow(load)
 }
 .todo-date-label { font-size: 29rpx; font-weight: 800; color: #3F4775; letter-spacing: .5rpx; }
 .todo-date-count { margin-left: auto; font-size: 22rpx; color: #A6AAC2; }
+.todo-date-add {
+  position: absolute;
+  top: -36rpx;
+  right: -2rpx;
+  z-index: 6;
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  border: 4rpx solid rgba(255, 255, 255, .9);
+  background: linear-gradient(135deg, #7C8BFF, #A78BFA);
+  color: #fff;
+  font-size: 56rpx;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14rpx 30rpx rgba(124, 139, 255, .38);
+}
 
 .todo-row { display: flex; align-items: stretch; }
 .todo-time { width: 78rpx; flex-shrink: 0; padding-top: 18rpx; }
@@ -1524,12 +1537,17 @@ onShow(load)
   white-space: pre-wrap;
   word-break: break-all;
 }
-.entry-photo {
-  display: block;
-  width: 100%;
-  height: 288rpx;
+.entry-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
   margin-top: 14rpx;
-  border-radius: 20rpx;
+}
+.entry-photo {
+  width: 152rpx;
+  height: 152rpx;
+  flex-shrink: 0;
+  border-radius: 14rpx;
   background: var(--soft);
   border: 1rpx solid var(--line);
 }

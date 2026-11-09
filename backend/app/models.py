@@ -71,7 +71,10 @@ class Note(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    # 记录照片：压缩后的 JPEG data URL，不保存原图
+    # 记录照片：压缩后的 JPEG data URL 列表（JSON 字符串），不保存原图
+    images: Mapped[str | None] = mapped_column(
+        Text().with_variant(MEDIUMTEXT, "mysql"), nullable=True, default="")
+    # 旧版单图字段，保留兼容；新记录写 images
     image: Mapped[str | None] = mapped_column(
         Text().with_variant(MEDIUMTEXT, "mysql"), nullable=True, default="")
     # 待办地点（可选），用于任务时间轴展示

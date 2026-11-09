@@ -9,6 +9,7 @@
 import base64
 import calendar
 import io
+import json
 import os
 import sys
 from datetime import date, datetime, timedelta
@@ -345,13 +346,14 @@ def seed(db, user: User) -> None:
          "mood", now - timedelta(days=3, hours=3), "rose"),
     ]
     free_photos = {
-        "旧书店的下午": _demo_photo("flower.png"),
-        "周末早餐计划": _demo_photo("coffee.png"),
-        "今天的晚霞像橘子汽水": _demo_photo("sun.png"),
+        "旧书店的下午": [_demo_photo("flower.png"), _demo_photo("coffee.png")],
+        "周末早餐计划": [_demo_photo("coffee.png"), _demo_photo("flower.png")],
+        "今天的晚霞像橘子汽水": [_demo_photo("sun.png"), _demo_photo("flower.png")],
     }
     for title, content, entry_type, created_at, color in free_notes:
+        photos = [p for p in free_photos.get(title, []) if p]
         db.add(Note(user_id=user.id, title=title, content=content,
-                    image=free_photos.get(title, ""),
+                    images=json.dumps(photos, ensure_ascii=False) if photos else "",
                     note_type="note", entry_type=entry_type, status="open",
                     priority="medium", pinned=0, color=color,
                     created_at=created_at, updated_at=created_at))

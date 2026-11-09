@@ -84,18 +84,33 @@ check("照片压缩为 JPEG data URL", len(note_image) > 100, r.text)
 r = client.post("/api/notes", headers=H_A, json={
     "title": "带照片的想法", "content": "把今天的桌面拍下来。",
     "note_type": "note", "entry_type": "idea", "image": note_image})
-check("记录保存照片", r.status_code == 200 and r.json()["image"] == note_image, r.text)
+check("记录保存单张照片",
+      r.status_code == 200 and r.json()["image"] == note_image
+      and r.json()["images"] == [note_image], r.text)
 photo_note_id = r.json()["id"]
 
 r = client.get(f"/api/notes/{photo_note_id}", headers=H_A)
-check("记录详情返回照片", r.json()["image"] == note_image, r.text)
+check("记录详情返回照片", r.json()["images"] == [note_image], r.text)
 
 r = client.put(f"/api/notes/{photo_note_id}", headers=H_A, json={
     "title": "带照片的想法（已编辑）", "content": "保留照片",
-    "note_type": "note", "entry_type": "idea", "image": note_image})
-check("编辑记录保留照片", r.status_code == 200
-      and r.json()["image"] == note_image
+    "note_type": "note", "entry_type": "idea",
+    "images": [note_image, note_image]})
+check("编辑记录保留多张照片", r.status_code == 200
+      and r.json()["images"] == [note_image, note_image]
       and "已编辑" in r.json()["title"], r.text)
+
+r = client.post("/api/notes", headers=H_A, json={
+    "title": "多图想法", "entry_type": "idea",
+    "images": [note_image, note_image, note_image]})
+check("记录支持多张照片",
+      r.status_code == 200 and len(r.json()["images"]) == 3, r.text)
+multi_photo_id = r.json()["id"]
+
+r = client.post("/api/notes", headers=H_A, json={
+    "title": "太多照片", "entry_type": "idea",
+    "images": [note_image] * 7})
+check("最多 6 张照片(422)", r.status_code == 422, r.text)
 
 r = client.post("/api/notes/photo", headers=H_A,
                 files={"file": ("not-image.txt", b"hello", "text/plain")})
@@ -109,8 +124,8 @@ check("未登录不能上传照片(401)", r.status_code == 401, r.text)
 r = client.get("/api/notes", headers=H_A, params={"entry_type": "idea"})
 body = r.json()
 check("想法列表包含想法与旧便签",
-      body["total"] == 3 and {i["id"] for i in body["items"]}
-      == {idea_id, legacy_id, photo_note_id}, r.text)
+      body["total"] == 4 and {i["id"] for i in body["items"]}
+      == {idea_id, legacy_id, photo_note_id, multi_photo_id}, r.text)
 check("想法列表全部是普通便签",
       all(i["note_type"] == "note" and i["entry_type"] in ("idea", "note")
           for i in body["items"]), r.text)

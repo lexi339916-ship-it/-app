@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS notes (
   title VARCHAR(100) NOT NULL,
   content TEXT,
   image MEDIUMTEXT NULL,
+  images MEDIUMTEXT NULL,
   location VARCHAR(100) NOT NULL DEFAULT '',
   note_type ENUM('note','todo') NOT NULL DEFAULT 'note',
   entry_type VARCHAR(10) NOT NULL DEFAULT 'note',

@@ -8,7 +8,8 @@ import {
 const editId = ref(null)
 const title = ref('')
 const content = ref('')
-const noteImage = ref('')
+const noteImages = ref([])
+const MAX_PHOTOS = 6
 const photoUploading = ref(false)
 const location = ref('')
 const recordType = ref('idea')       // todo / idea / mood
@@ -67,7 +68,10 @@ async function loadNote(id) {
   const n = await apiNote(id)
   title.value = n.title
   content.value = n.content
-  noteImage.value = n.image || ''
+  const photos = (Array.isArray(n.images) && n.images.length)
+    ? n.images
+    : (n.image ? [n.image] : [])
+  noteImages.value = photos.slice(0, MAX_PHOTOS)
   location.value = n.location || ''
   if (n.note_type === 'todo') recordType.value = 'todo'
   else recordType.value = n.entry_type === 'mood' ? 'mood' : 'idea'
@@ -89,17 +93,24 @@ function switchType(t) {
 
 function choosePhoto() {
   if (photoUploading.value) return
+  const remaining = MAX_PHOTOS - noteImages.value.length
+  if (remaining <= 0) {
+    uni.showToast({ title: '最多上传 6 张照片', icon: 'none' })
+    return
+  }
   uni.chooseImage({
-    count: 1,
+    count: remaining,
     sizeType: ['compressed'],
     sourceType: ['album', 'camera'],
     success: async (res) => {
-      const path = res.tempFilePaths && res.tempFilePaths[0]
-      if (!path) return
+      const paths = (res.tempFilePaths || []).slice(0, remaining)
+      if (!paths.length) return
       photoUploading.value = true
       try {
-        const out = await apiUploadNotePhoto(path)
-        if (out && out.image) noteImage.value = out.image
+        for (const path of paths) {
+          const out = await apiUploadNotePhoto(path)
+          if (out && out.image) noteImages.value.push(out.image)
+        }
       } catch (e) { /* 统一提示 */ } finally {
         photoUploading.value = false
       }
@@ -107,8 +118,13 @@ function choosePhoto() {
   })
 }
 
-function previewPhoto() {
-  if (noteImage.value) uni.previewImage({ urls: [noteImage.value] })
+function previewPhoto(index = 0) {
+  if (!noteImages.value.length) return
+  uni.previewImage({ urls: noteImages.value, current: noteImages.value[index] })
+}
+
+function removePhoto(index) {
+  noteImages.value.splice(index, 1)
 }
 
 async function save() {
@@ -123,7 +139,7 @@ async function save() {
   const payload = {
     title: title.value.trim(),
     content: content.value,
-    image: isTodo ? '' : noteImage.value,
+    images: isTodo ? [] : noteImages.value,
     location: isTodo ? location.value.trim() : '',
     note_type: isTodo ? 'todo' : 'note',
     entry_type: isTodo ? 'note' : recordType.value,
@@ -198,18 +214,21 @@ onLoad(async (options) => {
       <textarea class="ta" v-model="content" :placeholder="TYPE_META[recordType].contentPh" placeholder-class="ph" />
 
       <block v-if="recordType !== 'todo'">
-        <text class="field-label">这一刻的照片</text>
-        <view class="photo-box">
-          <view v-if="noteImage" class="photo-preview" @click="previewPhoto">
-            <image class="photo-img" :src="noteImage" mode="aspectFill" />
-            <view class="photo-remove" @click.stop="noteImage = ''">×</view>
+        <view class="photo-label-row">
+          <text class="photo-title">这一刻的照片</text>
+          <text class="photo-count">{{ noteImages.length }}/{{ MAX_PHOTOS }}</text>
+        </view>
+        <view class="photo-grid">
+          <view v-for="(src, idx) in noteImages" :key="idx" class="photo-item">
+            <image class="photo-img" :src="src" mode="aspectFill" @click="previewPhoto(idx)" />
+            <view class="photo-remove" @click.stop="removePhoto(idx)">×</view>
           </view>
-          <view v-else class="photo-add" @click="choosePhoto">
+          <view v-if="noteImages.length < MAX_PHOTOS" class="photo-add" @click="choosePhoto">
             <text class="photo-plus">{{ photoUploading ? '…' : '＋' }}</text>
             <text class="photo-label">{{ photoUploading ? '上传中' : '添加照片' }}</text>
           </view>
-          <text class="photo-hint">拍照或从相册选择<br />保存前自动压缩、去位置信息</text>
         </view>
+        <text class="photo-hint">最多 6 张 · 自动压缩、去除位置信息</text>
       </block>
 
       <block v-if="recordType === 'todo'">
@@ -317,34 +336,40 @@ onLoad(async (options) => {
   font-size: 30rpx;
   box-sizing: border-box;
 }
-.photo-box { display: flex; align-items: center; gap: 18rpx; }
-.photo-preview {
-  position: relative;
-  width: 176rpx;
-  height: 176rpx;
-  flex-shrink: 0;
-  border-radius: 20rpx;
-  overflow: visible;
+.photo-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 30rpx 0 16rpx;
 }
-.photo-img { width: 176rpx; height: 176rpx; border-radius: 20rpx; background: var(--soft); }
+.photo-title { font-size: 28rpx; color: #5A5F78; }
+.photo-count { font-size: 22rpx; color: #A6AAC2; }
+.photo-grid { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.photo-item {
+  position: relative;
+  width: 156rpx;
+  height: 156rpx;
+  flex-shrink: 0;
+}
+.photo-img { width: 156rpx; height: 156rpx; border-radius: 16rpx; background: var(--soft); }
 .photo-remove {
   position: absolute;
-  top: -12rpx;
-  right: -12rpx;
-  width: 42rpx;
-  height: 42rpx;
+  top: -10rpx;
+  right: -10rpx;
+  width: 38rpx;
+  height: 38rpx;
   border-radius: 50%;
   background: rgba(58, 48, 68, .82);
   color: #fff;
-  font-size: 28rpx;
-  line-height: 38rpx;
+  font-size: 26rpx;
+  line-height: 34rpx;
   text-align: center;
 }
 .photo-add {
-  width: 176rpx;
-  height: 176rpx;
+  width: 156rpx;
+  height: 156rpx;
   flex-shrink: 0;
-  border-radius: 20rpx;
+  border-radius: 16rpx;
   border: 2rpx dashed var(--line);
   background: var(--soft);
   display: flex;
@@ -353,9 +378,9 @@ onLoad(async (options) => {
   justify-content: center;
   gap: 4rpx;
 }
-.photo-plus { color: var(--accent); font-size: 42rpx; line-height: 1; font-weight: 700; }
-.photo-label { color: var(--accent); font-size: 23rpx; font-weight: 700; }
-.photo-hint { font-size: 22rpx; line-height: 1.7; color: #A6AAC2; }
+.photo-plus { color: var(--accent); font-size: 38rpx; line-height: 1; font-weight: 700; }
+.photo-label { color: var(--accent); font-size: 21rpx; font-weight: 700; }
+.photo-hint { display: block; margin-top: 12rpx; font-size: 22rpx; line-height: 1.7; color: #A6AAC2; }
 .due-row { display: flex; gap: 20rpx; }
 .picker-value {
   height: 88rpx;

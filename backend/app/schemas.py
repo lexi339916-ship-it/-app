@@ -115,6 +115,7 @@ class NoteIn(BaseModel):
     title: str = Field(min_length=1, max_length=100)
     content: str = Field(default="", max_length=5000)
     image: str = Field(default="", max_length=4_000_000)
+    images: list[str] = Field(default_factory=list, max_length=6)
     location: str = Field(default="", max_length=100)
     note_type: Literal["note", "todo"] = "note"
     entry_type: Literal["note", "idea", "mood"] = "note"
@@ -124,6 +125,14 @@ class NoteIn(BaseModel):
     pinned: bool = False
     color: str = Field(default="lilac", max_length=20)
 
+    @field_validator("images")
+    @classmethod
+    def _validate_images(cls, value: list[str]):
+        for image in value:
+            if len(image) > 4_000_000:
+                raise ValueError("单张照片过大")
+        return value
+
 
 class NoteOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -131,6 +140,7 @@ class NoteOut(BaseModel):
     title: str
     content: str
     image: str = ""
+    images: list[str] = Field(default_factory=list)
     location: str = ""
     note_type: str
     entry_type: str = "note"

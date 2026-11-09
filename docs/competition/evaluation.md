@@ -23,7 +23,8 @@
   - `tests/csv_import_test.py`（47 项 CSV 导入断言）
   - `tests/agent_eval/csv_import_report.md`（CSV 导入测试证据）
   - `tests/avatar_test.py`、`tests/notifications_test.py`、`tests/budget_consistency_test.py`、`tests/version_test.py`（v2.0 收口）
-  - `tests/notes_entries_test.py`（待办/想法/心情、地点、照片上传与压缩、用户隔离，23 项）
+  - `tests/notes_entries_test.py`（待办/想法/心情、地点、单图/多图与最多 6 张、用户隔离，25 项）
+  - `tests/note_tips_test.mjs`（小知点评必须引用原文并命中内容主题，17 项）
 
 ## 2. 结果（最近一次真实运行）
 
@@ -187,7 +188,7 @@
 - 中文数字：`十五`、`一百二`、`三千五`、`十五块五`、`三个月`、`两年` 等 56 项断言。
 - 安全：敏感信息脱敏、提示注入、跨用户隔离、登录失败限流。
 - 消费健康：五项指标、空数据、用户隔离、used_up/over100 语义。
-- 记录页：待办/想法/心情分类、旧便签兼容、地点、照片上传/压缩/非图片拒绝/未登录拒绝、用户隔离。
+- 记录页：待办/想法/心情分类、旧便签兼容、地点、照片上传/压缩/多图上限、用户隔离；小知点评内容匹配（每条提示引用原文并命中主题，未知主题只提示补充）。
 
 ## 4. 评测方法的局限
 
@@ -214,6 +215,7 @@
 ```bash
 python tools/seed_demo.py
 python tests/notes_entries_test.py
+node --experimental-default-type=module tests/note_tips_test.mjs
 python tests/agent_eval/run_eval.py --split all
 python tests/agent_eval/run_eval.py --split test
 python tests/agent_eval/run_flow_eval.py

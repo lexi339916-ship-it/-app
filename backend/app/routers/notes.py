@@ -1,6 +1,7 @@
 """便签与任务接口：CRUD、搜索、视图过滤（今天/近期/已完成）、优先级、置顶与记录照片。"""
 import base64
 import io
+import json
 from datetime import datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -44,8 +45,19 @@ def _to_out(row: Note) -> NoteOut:
     overdue = (
         row.note_type == "todo" and row.status == "open"
         and row.due_at is not None and row.due_at < datetime.now())
+    photos = []
+    if row.images:
+        try:
+            parsed = json.loads(row.images)
+            if isinstance(parsed, list):
+                photos = [x for x in parsed if isinstance(x, str) and x]
+        except Exception:
+            photos = []
+    if not photos and row.image:
+        photos = [row.image]
     return NoteOut(
-        id=row.id, title=row.title, content=row.content, image=row.image or "",
+        id=row.id, title=row.title, content=row.content,
+        image=photos[0] if photos else "", images=photos,
         location=row.location or "", note_type=row.note_type,
         entry_type=row.entry_type or "note",
         status=row.status, due_at=row.due_at,
@@ -131,12 +143,19 @@ def list_notes(
 
 
 def _payload(data: NoteIn) -> dict:
-    """归一化类型：待办不参与想法/心情细分；想法/心情固定为普通便签。"""
+    """归一化类型与照片：数据库存 JSON 数组，旧单图字段保留兼容。"""
     payload = data.model_dump()
     if payload["note_type"] == "todo":
         payload["entry_type"] = "note"
     elif payload["entry_type"] in ("idea", "mood"):
         payload["note_type"] = "note"
+    photos = [x for x in payload.pop("images", []) if x]
+    legacy = payload.get("image") or ""
+    if not photos and legacy:
+        photos = [legacy]
+    photos = photos[:6]
+    payload["images"] = json.dumps(photos, ensure_ascii=False) if photos else ""
+    payload["image"] = ""  # 新记录统一写 images，避免重复存 base64
     return payload
 
 

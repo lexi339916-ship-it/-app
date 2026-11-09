@@ -59,6 +59,7 @@ def _ensure_schema_patches() -> None:
             "entry_type": "ALTER TABLE notes ADD COLUMN entry_type VARCHAR(10) NOT NULL DEFAULT 'note'",
             "location": "ALTER TABLE notes ADD COLUMN location VARCHAR(100) NOT NULL DEFAULT ''",
             "image": "ALTER TABLE notes ADD COLUMN image MEDIUMTEXT",
+            "images": "ALTER TABLE notes ADD COLUMN images MEDIUMTEXT",
         },
         "subscriptions": {
             "category_id": "ALTER TABLE subscriptions ADD COLUMN category_id BIGINT",

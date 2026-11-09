@@ -1,22 +1,26 @@
 /** 应用品牌、版本与能力介绍：前端唯一来源。后端对应 backend/app/version.py。 */
 export const APP_NAME = '知账'
 export const APP_FULL_NAME = '知账 · 家庭消费健康 Agent'
-export const APP_VERSION = '2.0.0'
+export const APP_VERSION = '2.1.0'
 
 export const APP_FEATURES = [
+  '待办 / 想法 / 心情三模式记录',
+  '待办时间轴、提醒时间与地点',
+  '想法 / 心情彩色月历与一句话记录',
+  '每条记录最多 6 张照片，自动压缩排列',
+  '小知内容点评与温馨提醒',
   '自然语言 / 截图 / CSV 记账',
   'Agent 多步规划与审批',
   '对话式 Agent 工作台与历史会话',
   '执行校验、审计与撤销',
-  '消费健康诊断',
-  '消费决策模拟',
+  '消费健康诊断与决策模拟',
   '个人资产（房产/车辆/理财/负债）',
-  'Agent 资产查询与购买模拟',
   '预算、订阅与储蓄目标',
   '多轮对话与记忆',
 ]
 
 export const RELEASE_NOTES = [
+  { version: '2.1.0', date: '2026-11-09', text: '记录页三模式、待办时间轴、小知内容点评、多图照片与独立设置中心。' },
   { version: '2.0.0', date: '2026-11-05', text: '合并 AI 助手与 Agent，统一消息中心，新增头像、消费健康、决策模拟与 CSV 导入。' },
   { version: '1.0.0', date: '2026-11-04', text: '完成三英雄场景、审批/撤销/审计与基础评测。' },
 ]

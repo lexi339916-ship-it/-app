@@ -104,7 +104,7 @@
 - 头像 14 项：未登录/非图片/超限、256×256 data URL、`/me`/登录返回、删除、隔离。
 - 统一通知 33 项：summary 原始/去重计数、列表 source+id、折叠、旧接口兼容、已读、全部已读、跨用户、非法动作。
 - 预算一致性 14 项：分类预算投影、旧预算回退、已有分类预算 PUT 409、同步删除、账单 source 保留。
-- 版本 13 项：`/api/health`、Agent health、manifest、pages.json 统一为 2.0.0。
+- 版本 13 项：`/api/health`、Agent health、manifest、pages.json 统一为 2.1.0。
 
 ### 2.6.1 账单分类筛选 17 项断言
 

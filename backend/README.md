@@ -29,7 +29,7 @@
 ```text
 app/
 ├── main.py           # 入口、路由注册、统一错误、启动建表/迁移/种子分类
-├── version.py        # 品牌、版本 2.0.0、服务名、介绍
+├── version.py        # 品牌、版本 2.1.0、服务名、介绍
 ├── config.py         # 环境变量
 ├── database.py       # SQLAlchemy 2 引擎/会话
 ├── models.py         # 用户、账单、预算、目标、订阅、Agent、通知等表

@@ -44,7 +44,7 @@ check("健康检查 200", r.status_code == 200, r.text)
 h = r.json()
 check("服务名统一", h.get("service") == "zhizhang-api", str(h))
 check("应用名包含知账", "知账" in h.get("name", ""), str(h))
-check("版本为 2.0.0", h.get("version") == APP_VERSION == "2.0.0", str(h))
+check("版本为 2.1.0", h.get("version") == APP_VERSION == "2.1.0", str(h))
 
 r = client.get("/api/agent/health")
 check("Agent health 200", r.status_code == 200, r.text)
@@ -59,7 +59,7 @@ manifest = json.loads((ROOT / "frontend" / "manifest.json").read_text(encoding="
 check("manifest 应用名", manifest.get("name") == "知账", str(manifest.get("name")))
 check("manifest 版本", manifest.get("versionName") == APP_VERSION,
       str(manifest.get("versionName")))
-check("manifest versionCode", str(manifest.get("versionCode")) == "200",
+check("manifest versionCode", str(manifest.get("versionCode")) == "210",
       str(manifest.get("versionCode")))
 
 pages = json.loads((ROOT / "frontend" / "pages.json").read_text(encoding="utf-8"))

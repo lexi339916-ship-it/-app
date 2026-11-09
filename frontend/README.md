@@ -56,4 +56,4 @@
 - `store/notifications.js`：统一未读状态与 TabBar 角标。
 - `api/request.js`：Bearer Token、401 刷新一次、统一错误提示。
 - `api/index.js`：业务 API 封装；上传类接口复用 `uni.uploadFile`。
-- `common/app-info.js`：品牌、版本 2.0.0、能力列表、更新日志。
+- `common/app-info.js`：品牌、版本 2.1.0、能力列表、更新日志。

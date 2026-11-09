@@ -15,9 +15,6 @@ function addDays(dateStr, delta) {
   d.setDate(d.getDate() + delta)
   return fmtDate(d)
 }
-function dateOf(y, m, d) {
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-}
 
 const todayStr = fmtDate(nowLocal())
 const tomorrowStr = addDays(todayStr, 1)
@@ -154,7 +151,7 @@ const viewMode = ref('calendar')      // calendar 月历 / list 清单 / board �
 const calToday = nowLocal()
 const calYear = ref(calToday.getFullYear())
 const calMonth = ref(calToday.getMonth() + 1)   // 1-12
-const calSelected = ref(todayStr)
+const calSelected = ref('')
 
 const calTitle = computed(() => `${calYear.value}年${calMonth.value}月`)
 
@@ -208,9 +205,7 @@ function shiftMonth(delta) {
   else if (m > 12) { y += 1; m = 1 }
   calYear.value = y
   calMonth.value = m
-  const daysInMonth = new Date(y, m, 0).getDate()
-  const day = Math.min(Number(calSelected.value.slice(8)), daysInMonth)
-  calSelected.value = dateOf(y, m, day)
+  calSelected.value = ''
 }
 
 function goToday() {
@@ -221,12 +216,20 @@ function goToday() {
 }
 
 function selectCell(c) {
+  // 再点一次已选日期 = 取消筛选，恢复全部任务
+  if (calSelected.value === c.date) {
+    calSelected.value = ''
+    return
+  }
   calSelected.value = c.date
   if (!c.inMonth) {
     calYear.value = Number(c.date.slice(0, 4))
     calMonth.value = Number(c.date.slice(5, 7))
   }
 }
+
+const selectedDateLabel = computed(() =>
+  calSelected.value ? timelineDateLabel(calSelected.value) : '')
 
 function shortTitle(title) {
   return title.length > 5 ? title.slice(0, 5) : title
@@ -301,6 +304,11 @@ const todoTimelineGroups = computed(() => {
     })
   }
   return groups
+})
+
+const todoVisibleGroups = computed(() => {
+  if (!calSelected.value) return todoTimelineGroups.value
+  return todoTimelineGroups.value.filter(g => g.key === calSelected.value)
 })
 
 // ---------- 待办统计 ----------
@@ -628,7 +636,12 @@ onShow(load)
 
         <!-- 日历下方：待办时间轴 -->
         <view class="todo-feed">
-          <view v-for="(g, gIdx) in todoTimelineGroups" :key="g.key" class="todo-group">
+          <view v-if="calSelected" class="todo-filter">
+            <text>只看 {{ selectedDateLabel }}</text>
+            <text class="todo-filter-clear" @click="calSelected = ''">查看全部</text>
+          </view>
+
+          <view v-for="(g, gIdx) in todoVisibleGroups" :key="g.key" class="todo-group">
             <view class="todo-date-head">
               <view class="todo-date-square" />
               <text class="todo-date-label">{{ g.label }}</text>
@@ -684,10 +697,10 @@ onShow(load)
             </view>
           </view>
 
-          <view v-if="!todoTimelineGroups.length && !loading" class="glass day-empty">
+          <view v-if="!todoVisibleGroups.length && !loading" class="glass day-empty">
             <image class="empty-animal" src="/static/doodles/rabbit.png" mode="widthFix" />
-            <text>还没有待办，点下面按钮添加</text>
-            <view class="empty-add" @click="goNewTaskFor(todayStr)">＋ 新建任务</view>
+            <text>{{ calSelected ? '这一天还没有待办' : '还没有待办' }}，点下面按钮添加</text>
+            <view class="empty-add" @click="goNewTaskFor(calSelected || todayStr)">＋ 新建任务</view>
           </view>
         </view>
       </block>
@@ -1171,6 +1184,19 @@ onShow(load)
 
 /* ---------- 待办时间轴（日历下方） ---------- */
 .todo-feed { margin: 18rpx 24rpx 0; }
+.todo-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 6rpx 4rpx 12rpx;
+  padding: 12rpx 18rpx;
+  border-radius: 16rpx;
+  background: rgba(255, 253, 250, .78);
+  border: 1rpx dashed #E6DCCB;
+  font-size: 23rpx;
+  color: #7A7167;
+}
+.todo-filter-clear { color: #6C7BF5; font-weight: 700; }
 .todo-group { margin-bottom: 10rpx; }
 .todo-date-head {
   position: relative;

@@ -16,6 +16,7 @@
     {"path": "pages/notifications/notifications", "style": {"navigationBarTitleText": "提醒中心"}},
     {"path": "pages/goals/goals", "style": {"navigationBarTitleText": "目标与挑战"}},
     {"path": "pages/profile/profile", "style": {"navigationBarTitleText": "我的"}},
+    {"path": "pages/settings/settings", "style": {"navigationBarTitleText": "设置"}},
     {"path": "pages/budget/center", "style": {"navigationBarTitleText": "预算中心"}},
     {"path": "pages/subscriptions/list", "style": {"navigationBarTitleText": "订阅管理"}},
     {"path": "pages/subscriptions/edit", "style": {"navigationBarTitleText": "订阅设置"}}
